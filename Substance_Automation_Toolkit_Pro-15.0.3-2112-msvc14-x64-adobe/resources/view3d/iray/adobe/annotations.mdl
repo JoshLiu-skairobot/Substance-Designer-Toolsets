@@ -1,0 +1,25 @@
+mdl 1.6;
+
+import ::anno::deprecated;
+import ::anno::description;
+import ::anno::display_name;
+
+export annotation shader_usage(string name) [[
+    anno::deprecated("Please use ::anno::usage(...)")
+]];
+export annotation ui_position(int position) [[
+    anno::deprecated("Please use ::anno::ui_order(...)")
+]];
+
+export enum height_implementation
+[[
+	anno::display_name("Preferred Height Implementation"),
+	anno::description("Describes which implementation should be preferred when consuming height information")
+]]
+{
+	height_auto         [[ anno::display_name("Leave the choice to integration") ]],
+	height_bump         [[ anno::display_name("Prefer bump-mapping")             ]],
+	height_displacement [[ anno::display_name("Prefer displacement")             ]]
+};
+
+export annotation height_implementation_hint(height_implementation implementation);

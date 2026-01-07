@@ -1,0 +1,176 @@
+mdl 1.4;
+
+import ::tex::*;
+import ::anno::*;
+import ::df::*;
+import ::math::*;
+import ::state::*;
+
+import ::alg::base::annotations::*;
+
+export material standard(
+    varying color baseColor = color(0.630757f) [[
+        anno::description("The color of the surface."),
+        anno::display_name("Base Color"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("baseColor"),
+        alg::base::annotations::gamma_type(tex::gamma_srgb),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(0)
+    ]],
+    varying float opacity = 1.f [[
+        anno::description("The visibility of the surface."),
+        anno::display_name("Opacity"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("opacity"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(1)
+    ]],
+    varying float roughness = 0.4f [[
+        anno::description("How shiny the surface is."),
+        anno::display_name("Roughness"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("roughness"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(2)
+    ]],
+    varying float metallic = 0.f [[
+        anno::description("The degree of metallic luster the surface has."),
+        anno::display_name("Metallic"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("metallic"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(3)
+    ]],
+    varying float glow = 0.f [[
+        anno::description("The intensity of light emitted from the surface."),
+        anno::display_name("Glow"),
+        anno::soft_range(0.f,10.f),
+        anno::hard_range(0.f,1000000.f),
+        anno::usage("emissive"),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(4)
+    ]],
+    varying float height = 0.5f [[
+        anno::description("Use an image to offset the surface shape."),
+        anno::display_name("Height"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("height"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(5)
+    ]],
+    uniform float heightScale = 1.f [[
+        anno::description("Adjust the strength of the offset created by the height image."),
+        anno::display_name("Height Scale"),
+        anno::soft_range(0.f,10.f),
+        anno::hard_range(0.f,1000000.f),
+        anno::usage("heightScale"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(6)
+    ]],
+    varying float3 normal = state::normal() [[
+        anno::description("Adds details to the surface without displacement."),
+        anno::display_name("Normal"),
+        anno::usage("normal"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(7)
+    ]],
+    varying float translucence = 0.f [[
+        anno::description("The amount of light able to refract through the object."),
+        anno::display_name("Translucence"),
+        anno::in_group("Translucence"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("translucency"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(8)
+    ]],
+    uniform float indexOfRefraction = 1.6f [[
+        anno::description("The amount light bends as it passes through the object."),
+        anno::display_name("Index of Refraction"),
+        anno::in_group("Translucence"),
+        anno::soft_range(1.f,3.f),
+        anno::hard_range(0.01f,40.f),
+        anno::usage("IOR"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(9)
+    ]],
+    uniform float density = 0.f [[
+        anno::description("Adjusts the clarity of the interior volume to be clear or foggy."),
+        anno::display_name("Density"),
+        anno::in_group("Translucence"),
+        anno::soft_range(0.f,10.f),
+        anno::hard_range(0.f,1000000.f),
+        anno::usage("density"),
+        anno::ui_order(10)
+    ]],
+    uniform color interiorColor = color(1.f) [[
+        anno::description("Adjusts the color of interior volume fog."),
+        anno::display_name("Interior Color"),
+        anno::in_group("Translucence"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("interiorColor"),
+        alg::base::annotations::gamma_type(tex::gamma_srgb),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(11)
+    ]],
+    varying float ambientOcclusion = 1.0f [[
+        anno::description("Ambient occlusion coefficient for the surface."),
+        anno::display_name("Ambient Occlusion"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::unused("Reserved for material interoperability."),
+        anno::usage("ambientOcclusion"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(12)
+    ]])
+[[
+    anno::description("Adobe Standard Material with consolidated base color."),
+    anno::in_group("mtl"),
+    anno::display_name("Adobe Standard Material"),
+    anno::key_words(string[]("adobe")),
+    anno::copyright_notice("(c) 2016-2021 Adobe Systems"),
+    anno::author("Adobe"),
+    anno::contributor("Daniel Babcock"),
+    anno::contributor("Michael Bond"),
+    anno::contributor("Stefano Corazza"),
+    anno::contributor("Paul Edmondson"),
+    anno::contributor("Zorana Gee"),
+    anno::contributor("Tyler Lafreniere"),
+    anno::contributor("Bushra Mahmood"),
+    anno::contributor("Jeanette Matthews"),
+    anno::contributor("Justin Patton"),
+    anno::contributor("Vladimir Petkovic"),
+    anno::contributor("Charles Pina"),
+    anno::contributor("Erin Kim"),
+    anno::version(3,0,0),
+    anno::modified(2021, 3, 25, "Deprecation"),
+    anno::deprecated("use ::adobe::materials::standard instead"),
+    anno::hidden() // Hidden to favor more modern alternative ::adobe::materials::standard
+]]
+ =
+    let
+    material tmp0(
+        thin_walled: false,
+        surface: material_surface(df::weighted_layer(translucence, df::fresnel_layer(indexOfRefraction, 0.5f, df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, color(1.f, 1.f, 1.f), state::texture_tangent_u(0), df::scatter_reflect, ""), df::fresnel_layer(indexOfRefraction, roughness * roughness, df::diffuse_transmission_bsdf(baseColor, ""), df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, baseColor, state::texture_tangent_u(0), df::scatter_transmit, ""), state::normal()), state::normal()), df::weighted_layer(metallic, df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, baseColor, state::texture_tangent_u(0), df::scatter_reflect, ""), df::fresnel_layer(1.6f, 1.f - roughness * roughness, df::weighted_layer(roughness * roughness, df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, baseColor, state::texture_tangent_u(0), df::scatter_reflect, ""), df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, color(1.f, 1.f, 1.f), state::texture_tangent_u(0), df::scatter_reflect, ""), state::normal()), df::diffuse_reflection_bsdf(baseColor, roughness * roughness, ""), state::normal()), state::normal()), state::normal()), material_emission(df::diffuse_edf(""), color(glow * 2.86f) * baseColor, intensity_radiant_exitance)),
+        backface: material_surface(df::weighted_layer(translucence, df::fresnel_layer(indexOfRefraction, 0.5f, df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, color(1.f, 1.f, 1.f), state::texture_tangent_u(0), df::scatter_reflect, ""), df::fresnel_layer(indexOfRefraction, roughness * roughness, df::diffuse_transmission_bsdf(baseColor, ""), df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, baseColor, state::texture_tangent_u(0), df::scatter_transmit, ""), state::normal()), state::normal()), df::weighted_layer(metallic, df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, baseColor, state::texture_tangent_u(0), df::scatter_reflect, ""), df::fresnel_layer(1.6f, 1.f - roughness * roughness, df::weighted_layer(roughness * roughness, df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, baseColor, state::texture_tangent_u(0), df::scatter_reflect, ""), df::microfacet_ggx_smith_bsdf(roughness * roughness, roughness * roughness, color(1.f, 1.f, 1.f), state::texture_tangent_u(0), df::scatter_reflect, ""), state::normal()), df::diffuse_reflection_bsdf(baseColor, roughness * roughness, ""), state::normal()), state::normal()), state::normal()), material_emission(df::diffuse_edf(""), color(glow * 2.86f) * baseColor, intensity_radiant_exitance)),
+        ior: color(indexOfRefraction),
+        volume: material_volume(vdf(), -math::log(math::clamp(interiorColor, color(0.000303527f, 0.000303527f, 0.000303527f), color(0.991102f, 0.991102f, 0.991102f))) * density * state::scene_units_per_meter(), color(density * state::scene_units_per_meter()) * color(0.6931472f, 0.6931472f, 0.6931472f)),
+        geometry: material_geometry((height * 2.f - 1.f) * heightScale * state::normal(), opacity, normal));
+    in
+        material(thin_walled: tmp0.thin_walled,surface : tmp0.surface,backface : tmp0.backface,ior : tmp0.ior,volume : tmp0.volume,geometry : tmp0.geometry);

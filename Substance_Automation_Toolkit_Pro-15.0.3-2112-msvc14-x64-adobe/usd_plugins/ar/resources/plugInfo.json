@@ -1,0 +1,25 @@
+{
+  "Plugins" : 
+  [
+    {
+      "Info" : 
+      {
+        "Types" : 
+        {
+          "ArDefaultResolver" : 
+          {
+            "bases" : [ "ArResolver" ],
+            "implementsContexts" : true
+          },
+          "ArPackageResolver" : {},
+          "ArResolver" : {}
+        }
+      },
+      "LibraryPath" : "../../usd_ar.dll",
+      "Name" : "ar",
+      "ResourcePath" : "resources",
+      "Root" : "..",
+      "Type" : "library"
+    }
+  ]
+}

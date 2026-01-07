@@ -1,0 +1,10 @@
+Substance Batchtools 5.3.3 build 16905
+
+Bug Fix:
+
+[sbsbaker] Multiple objects in .obj are not correctly imported
+[sbsbaker] Read OBJ files properly to make matching by name compatible
+[sbsbaker] Position with Bsphere normalization in not centered
+[sbsbaker] Grayscale images are saved as indexed with tga format
+[sbsbaker] Normal-from-mesh: "always recompute tangent frame" option is not implicit
+[sbsbaker] Impossible to bake with multiple high-poly at once

@@ -1,0 +1,13 @@
+{
+  "version": "1.2.1",
+  "skills": {
+    "enabled": true,
+    "path": "./skills",
+    "source": "anthropics/skills"
+  },
+  "openskills": {
+    "enabled": true,
+    "initialized": true
+  },
+  "timestamp": "2026-01-05T05:15:00.000Z"
+}

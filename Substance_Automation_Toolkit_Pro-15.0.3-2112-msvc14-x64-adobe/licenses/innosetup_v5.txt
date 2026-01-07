@@ -1,0 +1,5 @@
+With the courtesy of Inno Setup, copyrighted by Jordan Russell. 
+Copyright (C) 1997-2018 Jordan Russell. All rights reserved.
+
+Portions Copyright (C) 2000-2018 Martijn Laan. All rights reserved.
+

@@ -1,0 +1,496 @@
+/******************************************************************************
+ * Copyright 2023 Adobe Corporation. All rights reserved.
+ *****************************************************************************/
+
+mdl 1.7;
+
+import ::df::*;
+import ::base::*;
+import ::tex::*;
+import ::anno::*;
+import ::state::*;
+import ::math::*;
+
+// the version of this module loosely follows the corresponding
+// version of the AxF SDK the axf importer uses / supports
+module [[
+    anno::version(1, 7, 100),
+    anno::display_name("Materials used by the AxF importer")
+]];
+
+float3 tangent_space_normal_texture(
+    uniform texture_2d texture
+        [[
+            anno::description("The input texture"),
+            anno::usage("normal")
+        ]],
+    uniform float factor = 1.0f
+        [[ anno::description("Determines the degree of bumpiness") ]],
+    base::texture_coordinate_info uvw = base::texture_coordinate_info()
+        [[ anno::description("Parameterization to be used for texture mapping. Defaults to texture channel 0.") ]],
+    uniform tex::wrap_mode wrap_u = tex::wrap_repeat
+        [[ anno::description("Wrapping mode in the u direction") ]],
+    uniform tex::wrap_mode wrap_v = tex::wrap_repeat
+        [[ anno::description("Wrapping mode in the v direction") ]],
+    float3 geometry_normal = state::normal()
+)
+[[
+    anno::description("Decode AxF normal map and applies it to a geometric normal")
+]]
+{
+    if (tex::width(texture) == 0 || tex::height(texture) == 0 || // avoid division by zero in texremapu for invalid resource
+        factor == 0.0f)
+        return geometry_normal;
+    {
+        if (wrap_u == tex::wrap_clip && (uvw.position.x < 0. || uvw.position.x > 1.)) {
+            return geometry_normal;
+        }
+        if (wrap_v == tex::wrap_clip && (uvw.position.y < 0. || uvw.position.y > 1.)) {
+            return geometry_normal;
+        }
+    }
+    bool pixel_flip_u = false;
+    bool pixel_flip_v = false;
+    //if we mirror repeat a tangent space texture, tangent space needs to be flipped for every other tile
+    if (wrap_u == tex::wrap_mirrored_repeat) {
+        if( uvw.position.x > 0. && int(uvw.position.x) % 2 == 1)
+            pixel_flip_u = ! pixel_flip_u;
+        else if( uvw.position.x < 0. && int(uvw.position.x) % 2 == 0)
+            pixel_flip_u = ! pixel_flip_u;
+    }
+    if (wrap_v == tex::wrap_mirrored_repeat) {
+        if( uvw.position.y > 0. && int(uvw.position.y) % 2 == 1)
+            pixel_flip_v = ! pixel_flip_v;
+        else if( uvw.position.y < 0. && int(uvw.position.y) % 2 == 0)
+            pixel_flip_v = ! pixel_flip_v;
+    }
+
+    float3 transformed_tangent_u = uvw.tangent_u;
+    float3 transformed_tangent_v = uvw.tangent_v;
+
+    if (pixel_flip_u)
+        transformed_tangent_u=-transformed_tangent_u;
+    if (pixel_flip_v)
+        transformed_tangent_v=-transformed_tangent_v;
+
+    float3 tangent_space_normal = tex::lookup_float3(
+        texture,
+        float2(uvw.position.x,uvw.position.y),
+        wrap_u,
+        wrap_v
+    );
+
+    // transform normal map values from [-1,1] to [0,1]
+    tangent_space_normal = tangent_space_normal * float3(0.5) + float3(0.5);
+
+    tangent_space_normal -= float3(0.5);
+    tangent_space_normal *= 2.0 * factor;
+
+    return math::normalize(
+        transformed_tangent_u * tangent_space_normal.x +
+        transformed_tangent_v * tangent_space_normal.y +
+        geometry_normal * (tangent_space_normal.z + (1.0 - factor))
+    );
+}
+
+// modify anisotropic value [-pi /2, pi / 2] → [0, 1]
+float aniso_rotation_conversion(float angle)
+{
+    if (angle < 0.0)
+        angle += math::TWO_PI;
+
+    return angle * math::HALF_PI;
+}
+
+
+export enum specular_variant_type [[anno::description("Specular model implementations supported for AxF SVBRDFs") ]]
+{
+    specular_variant_ward_geislermoroder = 0,
+    specular_variant_cooktorrance_default = 1,
+    specular_variant_ggx_walter = 2,
+    specular_variant_ggx_ross = 3
+};
+
+export enum fresnel_variant_type [[anno::description("Fresnel implementations supported for AxF SVBRDFs") ]]
+{
+    fresnel_variant_schlick1994 = 0,
+    fresnel_variant_schlick1994_colored = 1,
+    fresnel_variant_simple_fresnel = 2,
+    fresnel_variant_none = 255
+};
+
+
+export enum transmission_variant_type [[anno::description("Transmission model implementations supported for AxF SVBRDFs") ]]
+{
+    transmission_variant_refractive_dirac_transmission_model_default = 0,
+    transmission_variant_refractive_dirac_transmission_model_no_solid_angle_compression = 1,
+    transmission_variant_non_refractive_dirac_transmission_model_default = 2,
+    transmission_variant_non_refractive_dirac_transmission_model_DSPBR2020x = 3,
+    transmission_variant_ggx_transmission_model_default = 4
+};
+export material svbrdf(
+    uniform bool has_alpha_transparency = false
+    [[
+        anno::in_group("AxF information"),
+        anno::usage("characteristics.has_alpha_transparency"),
+        anno::display_name("Has alpha transparency?")
+    ]],
+    uniform bool has_displacement = false
+    [[
+        anno::in_group("AxF information"),
+        anno::usage("characteristics.has_displacement"),
+        anno::display_name("Has displacement?")
+    ]],
+    uniform bool has_clear_coat = false
+    [[
+        anno::in_group("AxF information"),
+        anno::usage("characteristics.has_clear_coat"),
+        anno::display_name("Has clear coat?")
+    ]],
+    uniform bool has_fresnel = false
+    [[
+        anno::in_group("AxF information"),
+        anno::usage("models.specular.has_fresnel"),
+        anno::display_name("Specular model has Fresnel term?")
+    ]],
+    uniform bool is_anisotropic = false
+    [[
+        anno::in_group("AxF information"),
+        anno::usage("models.specular.is_anisotropic"),
+        anno::display_name("Specular model is anisotropic?")
+    ]],
+    uniform specular_variant_type specular_variant = specular_variant_ward_geislermoroder
+    [[
+        anno::in_group("AxF information"),
+        anno::usage("models.specular.qualified_variant"),
+        anno::display_name("Specular model variant")
+    ]],
+    uniform fresnel_variant_type fresnel_variant = fresnel_variant_schlick1994
+    [[
+        anno::in_group("AxF information"),
+        anno::usage("models.specular.fresnel_variant"),
+        anno::display_name("Fresnel specular model variant"),
+        anno::enable_if("has_fresnel")
+    ]],
+    uniform transmission_variant_type clearcoat_transmission_variant = transmission_variant_non_refractive_dirac_transmission_model_default
+    [[
+        anno::in_group("AxF information"),
+        anno::usage("extensions.clear_coat.models.transmission.qualified_variant"),
+        anno::display_name("Clear coat transmission model variant"),
+        anno::enable_if("has_clear_coat"),
+        anno::unused("NYI")
+    ]],
+
+    uniform texture_2d diffuse_color_texture = texture_2d("./default_diffuse_color.png", ::tex::gamma_linear)
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("DiffuseColor"),
+        anno::display_name("Diffuse color")
+    ]],
+    uniform texture_2d normal_texture = texture_2d()
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("DiffuseNormal"),
+        anno::display_name("Diffuse normal")
+    ]],
+    uniform texture_2d specular_amount_texture = texture_2d()
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("SpecularAmount"),
+        anno::display_name("Specular amount")
+    ]],
+    uniform texture_2d specular_color_texture = texture_2d("./default_specular_color.png", ::tex::gamma_linear)
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("SpecularColor"),
+        anno::display_name("Specular color")
+    ]],
+    uniform texture_2d specular_lobe_texture = texture_2d()
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("SpecularLobe"),
+        anno::display_name("Specular lobe")
+    ]],
+    uniform texture_2d fresnel_texture = texture_2d()
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("SpecularFresnel"),
+        anno::display_name("Specular Fresnel"),
+        anno::enable_if("has_fresnel")
+    ]],
+    uniform texture_2d aniso_rotation_texture = texture_2d()
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("SpecularAnisotropyRotation"),
+        anno::display_name("Specular anisotropy rotation"),
+        anno::enable_if("is_anisotropic")
+    ]],
+    uniform texture_2d clearcoat_normal_texture = texture_2d()
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("ClearcoatNormal"),
+        anno::display_name("Clear coat normal"),
+        anno::enable_if("has_clear_coat")
+    ]],
+    uniform texture_2d clearcoat_ior_texture = texture_2d()
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("ClearcoatIndexOfRefraction"),
+        anno::display_name("Clear coat IOR"),
+        anno::enable_if("has_clear_coat")
+    ]],
+    uniform texture_2d height_texture = texture_2d()
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("DisplacementHeightMap"),
+        anno::display_name("Displacement height"),
+        anno::enable_if("has_displacement")
+    ]],
+    uniform texture_2d alpha_texture = texture_2d()
+    [[
+        anno::in_group("AxF textures"),
+        anno::usage("AlphaTransparency"),
+        anno::display_name("Alpha transparency"),
+        anno::enable_if("has_alpha_transparency")
+    ]],
+
+    base::texture_coordinate_info coordinate_override = base::texture_coordinate_info()
+    [[
+        anno::description("By default, texturing is using object uv coordinates. Procedural coordinate"
+                        " generators like base::coordinate_projection can be attached here to override the default behavior")
+    ]],
+    uniform bool uvwScaleEnabled = true
+    [[
+        anno::display_name("Account for physical size ratio"),
+        anno::description("Set to true if the real world measurements of the measured sample are known"),
+        anno::in_group("Material placement")
+    ]],
+    uniform float3 physical_sample_size_in_centimeters = float3(0.1, 0.1, 0.0) // "physical_size" is "reserved" by Designer, so use a different name
+    [[
+        anno::usage("physicalSize"),
+        anno::display_name("Physical sample size"),
+        anno::description("The width, height, depth of the measured sample in cm"),
+        anno::soft_range(float3(0.01), float3(100)),
+        anno::in_group("Material placement")
+    ]],
+
+    uniform float uv_tiling = 1.0
+    [[
+        anno::display_name("Tiling"),
+        anno::description("UV scaling factor"),
+        anno::soft_range(0.01, 100),
+        anno::in_group("Material placement")
+    ]],
+    uniform float scale_height = 1.0
+    [[
+        anno::display_name("Scale"),
+        anno::soft_range(0.f,10.f),
+        anno::description("Scale factor for the displacement mapping effect"),
+        anno::in_group("Height"),
+        anno::enable_if("has_displacement")
+    ]]
+)
+[[
+    anno::display_name("AxF SVBRDF material"),
+    anno::description("MDL implementation of the SVBRDF model used in AxF files"),
+    anno::author("Adobe"),
+    anno::copyright_notice("Copyright 2023 Adobe Corporation. All rights reserved."),
+    anno::key_words(string[]("axf","svbrdf"))
+]]
+ = let {
+    uniform float max_extent = math::max(physical_sample_size_in_centimeters.x, physical_sample_size_in_centimeters.y);
+
+    uniform float2 uv_scaling = (uvwScaleEnabled && max_extent != 0.0) ? float2(max_extent / physical_sample_size_in_centimeters.x, max_extent / physical_sample_size_in_centimeters.y): float2(1.0);
+    uniform float3 material_scale = float3(uv_scaling.x * uv_tiling, uv_scaling.y * uv_tiling, 1.0);
+
+    base::texture_coordinate_info coordinate = base::transform_coordinate(
+        base::rotation_translation_scale(
+            rotation: float3(0.0),
+            translation: float3(0.0),
+            scaling: material_scale
+        ),
+        coordinate: coordinate_override
+    );
+
+    base::texture_return diffuse_color = base::file_texture(
+        texture: diffuse_color_texture,
+        uvw: coordinate,
+        wrap_u: tex::wrap_repeat,
+        wrap_v: tex::wrap_repeat,
+        mono_source: base::mono_maximum
+    );
+
+    base::texture_return specular_color = base::file_texture(
+        texture: specular_color_texture,
+        uvw: coordinate,
+        wrap_u: tex::wrap_repeat,
+        wrap_v: tex::wrap_repeat,
+        mono_source: base::mono_maximum
+    );
+
+    base::texture_return specular_lobe = base::file_texture(
+        texture: specular_lobe_texture,
+        uvw: coordinate,
+        wrap_u: tex::wrap_repeat,
+        wrap_v: tex::wrap_repeat,
+        mono_source: base::mono_alpha
+    );
+
+    // TODO: Performance bottleneck, consider using our own texture sampling routine.
+    float3 specular_lobe_xyz = float3(specular_lobe.tint);
+
+    float specular_brdf_u = specular_lobe_xyz.x;
+    float specular_brdf_v = is_anisotropic ? specular_lobe_xyz.y : specular_brdf_u;
+
+    float3 tangent_u = is_anisotropic
+        ? base::anisotropy_conversion(
+            tangent_u: coordinate_override.tangent_u,
+            anisotropy_rotation: aniso_rotation_conversion(base::file_texture(
+                texture: aniso_rotation_texture,
+                uvw: coordinate,
+                wrap_u: tex::wrap_repeat,
+                wrap_v: tex::wrap_repeat,
+                mono_source: base::mono_maximum
+            ).mono)
+          ).tangent_u
+        : coordinate_override.tangent_u
+        ;
+
+    float3 normal = tangent_space_normal_texture(
+        texture: normal_texture,
+        uvw: coordinate,
+        wrap_u: tex::wrap_repeat,
+        wrap_v: tex::wrap_repeat
+    );
+
+    base::texture_return fresnel = has_fresnel
+        ? base::file_texture(
+            texture: fresnel_texture,
+            uvw: coordinate,
+            wrap_u: tex::wrap_repeat,
+            wrap_v: tex::wrap_repeat,
+            mono_source: base::mono_maximum
+          )
+        : base::texture_return();
+
+    //
+    // glossy/specular component with optional Fresnel
+    //
+
+    bsdf glossy_component0 =
+        specular_variant == specular_variant_ward_geislermoroder ?
+            df::ward_geisler_moroder_bsdf(
+                roughness_u: specular_brdf_u,
+                roughness_v: specular_brdf_v,
+                tangent_u: tangent_u)
+        : (specular_variant == specular_variant_cooktorrance_default ?
+            df::custom_curve_layer(
+                normal_reflectivity: base::file_texture(
+                    texture: specular_amount_texture,
+                    uvw: coordinate,
+                    wrap_u: tex::wrap_repeat,
+                    wrap_v: tex::wrap_repeat,
+                    mono_source: base::mono_maximum
+                    ).mono,
+                layer: df::microfacet_beckmann_vcavities_bsdf(
+                    roughness_u: specular_brdf_u,
+                    roughness_v: specular_brdf_v,
+                    tangent_u: tangent_u))
+        : // (specular_variant == specular_variant_ggx_walter) ||(specular_variant == specular_variant_ggx_ross)
+            df::microfacet_ggx_smith_bsdf(
+                roughness_u: specular_brdf_u,
+                roughness_v: specular_brdf_v,
+                tangent_u: tangent_u)
+            );
+
+    // // TODO: fresnel_variant_schlick1994_colored
+    // uniform fresnel_variant_type final_fresnel_variant = has_fresnel ? fresnel_variant : fresnel_variant_none;
+    // bsdf glossy_component =
+    //     (final_fresnel_variant == fresnel_variant_schlick1994) ?
+    //         df::custom_curve_layer(normal_reflectivity: fresnel.mono, layer: glossy_component0, normal: normal)
+    //     : ((final_fresnel_variant == fresnel_variant_simple_fresnel) ?
+    //         df::fresnel_layer(ior: fresnel.mono, layer: glossy_component0, normal: normal)
+    //     : df::weighted_layer(weight: 1.0f, layer: glossy_component0, normal: normal));
+
+    bsdf resolved_fresnel_glossy_component_0 = (fresnel_variant == fresnel_variant_schlick1994)
+        ? df::custom_curve_layer(normal_reflectivity: fresnel.mono, layer: glossy_component0, normal: normal)
+        : df::weighted_layer(weight: 1.0f, layer: glossy_component0, normal: normal);
+
+    bsdf resolved_fresnel_glossy_component_1 = (fresnel_variant == fresnel_variant_schlick1994_colored)
+        ? df::color_custom_curve_layer(normal_reflectivity: fresnel.tint, layer: glossy_component0, normal: normal)
+        : resolved_fresnel_glossy_component_0;
+
+    bsdf resolved_fresnel_glossy_component_2 = (fresnel_variant == fresnel_variant_simple_fresnel)
+        ? df::fresnel_layer(ior: fresnel.mono, layer: glossy_component0, normal: normal)
+        : resolved_fresnel_glossy_component_1;
+
+    // bsdf resolved_fresnel_glossy_component_0 = (fresnel_variant == fresnel_variant_schlick1994)
+    //     ? df::tint(tint: color(1.0, 0.0, 0.0), base: glossy_component0)
+    //     : df::weighted_layer(weight: 1.0f, layer: glossy_component0, normal: normal);
+    //
+    // bsdf resolved_fresnel_glossy_component_1 = (fresnel_variant == fresnel_variant_schlick1994_colored)
+    //     ? df::tint(tint: color(0.0, 1.0, 0.0), base: glossy_component0)
+    //     : resolved_fresnel_glossy_component_0;
+    //
+    // bsdf resolved_fresnel_glossy_component_2 = (fresnel_variant == fresnel_variant_simple_fresnel)
+    //     ? df::tint(tint: color(0.0, 0.0, 1.0), base: glossy_component0)
+    //     : resolved_fresnel_glossy_component_1;
+
+    bsdf glossy_component = has_fresnel
+        ? resolved_fresnel_glossy_component_2
+        : df::weighted_layer(weight: 1.0f, layer: glossy_component0, normal: normal);
+
+    bsdf base = df::color_normalized_mix(
+            df::color_bsdf_component[2](
+                df::color_bsdf_component(specular_color.tint, glossy_component),
+                df::color_bsdf_component(diffuse_color.tint, df::diffuse_reflection_bsdf()))
+            );
+
+    float clearcoat_ior = has_clear_coat
+        ? base::file_texture(
+            texture:  clearcoat_ior_texture,
+            uvw: coordinate,
+            wrap_u: tex::wrap_repeat,
+            wrap_v: tex::wrap_repeat,
+            mono_source: base::mono_maximum).mono
+        : 0.0f;
+    float3 clearcoat_normal = has_clear_coat
+        ? tangent_space_normal_texture(
+            texture: clearcoat_normal_texture,
+            uvw: coordinate,
+            wrap_u: tex::wrap_repeat,
+            wrap_v: tex::wrap_repeat)
+        : state::normal();
+
+    bsdf coated = has_clear_coat
+        ? df::fresnel_layer(ior: clearcoat_ior, layer: df::specular_bsdf(), base: base, normal: clearcoat_normal)
+        : base;
+
+    float3 displacement_value = (has_displacement && (scale_height > 0.0))
+        ? base::file_texture(
+            texture: height_texture,
+            uvw: coordinate,
+            wrap_u: tex::wrap_repeat,
+            wrap_v: tex::wrap_repeat,
+            color_scale: color(scale_height),
+            mono_source: base::mono_maximum).mono * state::normal()
+        : float3(0.0);
+
+    float cutout_value = has_alpha_transparency
+        ? base::file_texture(
+            texture: alpha_texture,
+            uvw: coordinate,
+            wrap_u: tex::wrap_repeat,
+            wrap_v: tex::wrap_repeat,
+            mono_source: base::mono_maximum).mono
+        : 1.0f;
+} in material(
+    surface: material_surface(
+        scattering: coated
+    ),
+    geometry: material_geometry(
+        displacement: displacement_value,
+        cutout_opacity: cutout_value
+    ),
+    thin_walled: true
+);

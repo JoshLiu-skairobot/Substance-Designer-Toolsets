@@ -1,0 +1,576 @@
+mdl 1.6;
+
+import ::anno::*;
+import ::base::*;
+import ::state::*;
+import ::tex::*;
+
+import ::alg::base::annotations::*;
+
+import ::alg::materials::asm::standard_scatter::standard;
+
+export material adobe_standard_material(
+    varying color base_color = color(0.5f) [[
+        anno::description("The color of the surface."),
+        anno::display_name("Base color"),
+        anno::in_group("Base Surface"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("baseColor"),
+        alg::base::annotations::gamma_type(tex::gamma_srgb),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(1)
+    ]],
+    varying float roughness = 0.3f [[
+        anno::description("How smooth or matte the surface is."),
+        anno::display_name("Roughness"),
+        anno::in_group("Base Surface"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("roughness"),
+        anno::usage("specular_roughness"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(2)
+    ]],
+    varying float metallic = 0.f [[
+        anno::description("The degree of metallic luster the surface has."),
+        anno::display_name("Metallic"),
+        anno::in_group("Base Surface"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("metallic"),
+        anno::usage("metalness"),
+        anno::usage("metalicity"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(3)
+    ]],
+    varying float opacity = 1.f [[
+        anno::description("The visibility of the surface."),
+        anno::display_name("Opacity"),
+        anno::in_group("Base Surface"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("opacity"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(4)
+    ]],
+
+    varying float ambient_occlusion = 1.f [[
+        anno::description("Shadows from cavities and creases preventing light from hitting the surface."),
+        anno::display_name("Ambient occlusion"),
+        anno::in_group("Base Surface"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("ambientOcclusion"),
+        anno::usage("occlusion"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::unused("Reserved for material interoperability."),
+        anno::ui_order(5)
+    ]],
+
+    varying float specular_level = 0.5f [[
+        anno::description("The strength of light reflections on the surface."),
+        anno::display_name("Specular level"),
+        anno::in_group("Base Surface"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("specularLevel"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        anno::ui_order(6)
+    ]],
+    varying color specular_edge_color = color(1.f) [[
+        anno::description("The color of light reflections. Affects glancing angles for metallic materials."),
+        anno::display_name("Specular edge color"),
+        anno::in_group("Base Surface"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("specularEdgeColor"),
+        anno::usage("specular_color"),
+        alg::base::annotations::gamma_type(tex::gamma_srgb),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(7)
+    ]],
+
+    varying float3 normal = state::normal() [[
+        anno::description("Simulate surface details like bumps and cracks."),
+        anno::display_name("Normal"),
+        anno::in_group("Normal"),
+        anno::usage("normal"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(8)
+    ]],
+    uniform float normal_scale = 1.f [[
+        anno::description("The strength of the normal effect."),
+        anno::display_name("Normal scale"),
+        anno::in_group("Normal"),
+        anno::soft_range(0.f,5.f),
+        anno::hard_range(-1000000.f,1000000.f),
+        anno::usage("normalScale"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(9)
+    ]],
+    uniform bool combine_normal_and_height = false [[
+        anno::description("Applies the normal texture on top of the height texture."),
+        anno::display_name("Combine normal and height"),
+        anno::in_group("Normal"),
+        anno::usage("combineNormalAndHeight"),
+        alg::base::annotations::visible_by_default(false),
+        anno::unused(),
+        anno::ui_order(10)
+    ]],
+
+    varying float height = 0.5f [[
+        anno::description("Creates surface details using bump or geometry displacement."),
+        anno::display_name("Height"),
+        anno::in_group("Height"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("height"),
+        anno::usage("displacement"),
+        anno::usage("bump"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(11)
+    ]],
+    uniform float height_scale = 1.0f [[
+        anno::description("The scale of height in scene units. Applies to both bump and displacement."),
+        anno::display_name("Height scale"),
+        anno::in_group("Height"),
+        anno::soft_range(0.f,5.f),
+        anno::hard_range(-1000000.f,1000000.f),
+        anno::usage("heightScale"),
+        anno::usage("dispScale"),
+        anno::usage("displacement_scale"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(12)
+    ]],
+    uniform float height_level = 0.5f [[
+        anno::description("The value of the height texture representing zero displacement."),
+        anno::display_name("Height level"),
+        anno::in_group("Height"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("heightLevel"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(13)
+    ]],
+    varying float anisotropy = 0.f [[
+        anno::description("The amount that reflections stretch in one direction along the surface."),
+        anno::display_name("Anisotropy level"),
+        anno::in_group("Anisotropy"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("anisotropyLevel"),
+        anno::usage("specular_anisotropy"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(14)
+    ]],
+    varying float anisotropy_rotation = 0.f [[
+        anno::description("The counterclockwise rotation of the anisotropic effect."),
+        anno::display_name("Anisotropy angle"),
+        anno::in_group("Anisotropy"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("anisotropyAngle"),
+        anno::usage("specular_rotation"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(15)
+    ]],
+
+    uniform float emission = 1.f [[
+        anno::description("The intensity of light emitted from the surface."),
+        anno::display_name("Emission intensity"),
+        anno::in_group("Emission"),
+        anno::soft_range(0.f,10.f),
+        anno::hard_range(0.f,1000000.f),
+        anno::usage("emissiveIntensity"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(16)
+    ]],
+    varying color emission_color = color(0.f) [[
+        anno::description("The color of emitted light."),
+        anno::display_name("Emission color"),
+        anno::in_group("Emission"),
+        anno::enable_if("emission>0"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("emissive"),
+        alg::base::annotations::gamma_type(tex::gamma_srgb),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(17)
+    ]],
+
+    varying float sheen = 0.f [[
+        anno::description("Simulates the effect microscopic fibers or fuzz on the surface."),
+        anno::display_name("Sheen opacity"),
+        anno::in_group("Sheen"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("sheenOpacity"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(18)
+    ]],
+    varying color sheen_color = color(1.f) [[
+        anno::description("The color of the sheen effect."),
+        anno::display_name("Sheen color"),
+        anno::in_group("Sheen"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("sheenColor"),
+        alg::base::annotations::gamma_type(tex::gamma_srgb),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(19)
+    ]],
+    varying float sheen_roughness = 0.5f [[
+        anno::description("Softness of the sheen effect."),
+        anno::display_name("Sheen roughness"),
+        anno::in_group("Sheen"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("sheenRoughness"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(20)
+    ]],
+
+    varying float translucency = 0.f [[
+        anno::description("The amount of light able to transmit through the surface."),
+        anno::display_name("Translucency"),
+        anno::in_group("Interior"),
+        anno::hard_range(0.f,1.f),
+        anno::soft_range(0.f,1.f),
+        anno::usage("translucency"),
+        anno::usage("translucence"),
+        anno::usage("refraction"),
+        anno::usage("transmission"),
+        anno::usage("subsurface"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(true),
+        anno::ui_order(21)
+    ]],
+
+    uniform bool thin_walled = false [[
+        anno::hidden(),     // not yet fully supported
+        anno::description("Treats all surfaces as a thin shell. Disables refraction, absorption, and scattering."),
+        anno::display_name("Thin-walled"),
+        anno::in_group("Interior"),
+        anno::usage("thinWalled"),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(22)
+    ]],
+
+    varying color absorption_color = color(1.f) [[
+        anno::description("The color light will converge to as it is absorbed."),
+        anno::display_name("Absorption color"),
+        anno::in_group("Interior"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("absorptionColor"),
+        anno::usage("transmission_color"),
+        alg::base::annotations::gamma_type(tex::gamma_srgb),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(23)
+    ]],
+    uniform float absorption_distance = 0.f [[
+        anno::description("Approximate distance in scene units that light will travel before reaching absorption color. If set to zero, thickness will not affect absorption color."),
+        anno::display_name("Absorption distance"),
+        anno::in_group("Interior"),
+        anno::soft_range(0.f,10.f),
+        anno::hard_range(0.f,1000000.f),
+        anno::usage("absorptionDistance"),
+        anno::usage("transmission_depth"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(24)
+    ]],
+    uniform float specular_ior = 1.5f [[
+        anno::description("The amount light bends as it passes through the object."),
+        anno::display_name("Index of refraction"),
+        anno::in_group("Interior"),
+        anno::soft_range(1.f,3.f),
+        anno::hard_range(0.01f,40.f),
+        anno::usage("IOR"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(25)
+    ]],
+    uniform float dispersion = 0.f [[
+        anno::description("The amount the color spectrum spreads out when refracted."),
+        anno::display_name("Dispersion"),
+        anno::in_group("Interior"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,20.f),
+        anno::usage("dispersion"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(26)
+    ]],
+    uniform bool scatter = false [[
+        anno::description("Scatters light below the surface, rather than passing straight through."),
+        anno::display_name("Subsurface scattering"),
+        anno::in_group("Interior", "Subsurface scattering"),
+        anno::usage("scatter"),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(27)
+    ]],
+    varying color scatter_color = color(1.f) [[
+        anno::description("The color below the surface that scattered light will become."),
+        anno::display_name("Scattering color"),
+        anno::in_group("Interior", "Subsurface scattering"),
+        anno::enable_if("scatter==true"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("scatteringColor"),
+        anno::usage("interiorColor"),
+        anno::usage("subsurface_color"),
+        alg::base::annotations::gamma_type(tex::gamma_srgb),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(28)
+    ]],
+    uniform float scatter_distance = 1.f [[
+        anno::description("Approximate distance light must travel before reaching full scattering."),
+        anno::display_name("Scattering distance"),
+        anno::in_group("Interior", "Subsurface scattering"),
+        anno::enable_if("scatter==true"),
+        anno::soft_range(0.f,10.f),
+        anno::hard_range(0.f,1000000.f),
+        anno::usage("scatteringDistance"),
+        anno::usage("subsurface_scale"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(29)
+    ]],
+    varying color scatter_distance_scale = color(1.f, 1.f, 1.f) [[
+        anno::description("A multiplier of the scatter distance. May be different for each color channel."),
+        anno::display_name("Scattering distance scale"),
+        anno::in_group("Interior", "Subsurface scattering"),
+        anno::enable_if("scatter==true"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("scatteringDistanceScale"),
+        anno::usage("scattering"),
+        anno::usage("subsurface_radius"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(30)
+    ]],
+    uniform float scatter_red_shift = 0.f [[
+        anno::description("Sets red light to travel further than other light colors. Useful for skin."),
+        anno::display_name("Red shift"),
+        anno::in_group("Interior", "Subsurface scattering"),
+        anno::enable_if("scatter==true"),
+        anno::soft_range(0.f, 1.f),
+        anno::hard_range(0.f, 2.f),
+        anno::usage("scatteringRedShift"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(31)
+    ]],
+    uniform float scatter_rayleigh = 0.f [[
+        anno::description("Sets orange light to travel further beneath the surface and blue light to travel less."),
+        anno::display_name("Rayleigh scattering"),
+        anno::in_group("Interior", "Subsurface scattering"),
+        anno::enable_if("scatter==true"),
+        anno::soft_range(0.f, 1.f),
+        anno::hard_range(-1.f, 2.f),
+        anno::usage("scatteringRayleigh"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(32)
+    ]],
+
+    varying float volume_thickness = 1.f [[
+        anno::hidden(),     // not yet fully supported
+        anno::description("	The thickness of the surface relative to the bounding box of the object. Used for interior effects when the real thickness is not known."),
+        anno::display_name("Volume thickness"),
+        anno::in_group("Interior", "Volume"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("volumeThickness"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::unused("Reserved for material interoperability."),
+        anno::ui_order(34)
+    ]],
+    uniform float volume_thickness_scale = 1.f [[
+        anno::hidden(),     // not yet fully supported
+        anno::description("Multiplier of the volume thickness."),
+        anno::display_name("Volume thickness scale"),
+        anno::in_group("Interior", "Volume"),
+        anno::soft_range(0.f,5.f),
+        anno::hard_range(0.f,1000000.f),
+        anno::usage("volumeThicknessScale"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::unused("Reserved for material interoperability."),
+        anno::ui_order(35)
+   ]],
+
+    varying float coat = 0.f [[
+        anno::description("Simulates a layer on top of the material. Used to create clear coats, lacquers, and varnishes."),
+        anno::display_name("Coat opacity"),
+        anno::in_group("Coat"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("coatOpacity"),
+        anno::usage("clearCoatIntensity"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(36)
+    ]],
+    varying color coat_color = color(1.f) [[
+        anno::description("The color of the coat."),
+        anno::display_name("Coat color"),
+        anno::in_group("Coat"),
+        anno::soft_range(color(0.f),color(1.f)),
+        anno::hard_range(color(0.f),color(1.f)),
+        anno::usage("coatColor"),
+        anno::usage("clearCoatColor"),
+        alg::base::annotations::gamma_type(tex::gamma_srgb),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(37)
+    ]],
+    varying float coat_roughness = 0.f [[
+        anno::description("How smooth or matte the coat surface is."),
+        anno::display_name("Coat roughness"),
+        anno::in_group("Coat"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("coatRoughness"),
+        anno::usage("clearCoatRoughness"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(38)
+    ]],
+    uniform float coat_ior = 1.6f [[
+        anno::description("The amount light bends as it passes through the coating."),
+        anno::display_name("Coat index of refraction"),
+        anno::in_group("Coat"),
+        anno::soft_range(1.f,3.f),
+        anno::hard_range(0.01f,40.f),
+        anno::usage("coatIOR"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(39)
+    ]],
+    varying float coat_specular_level = 0.5f [[
+        anno::description("The strength of light reflections on the coat at glancing angles."),
+        anno::display_name("Coat specular level"),
+        anno::in_group("Coat"),
+        anno::soft_range(0.f,1.f),
+        anno::hard_range(0.f,1.f),
+        anno::usage("coatSpecularLevel"),
+        anno::usage("clearCoatSpecularLevel"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(40)
+    ]],
+    varying float3 coat_normal = state::normal() [[
+        anno::description("Simulate surface details like bumps and cracks on the coat surface."),
+        anno::display_name("Coat normal"),
+        anno::in_group("Coat"),
+        anno::usage("coatNormal"),
+        anno::usage("clearCoatNormal"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(41)
+    ]],
+    uniform float coat_normal_scale = 1.f [[
+        anno::description("The strength of the coat normal effect."),
+        anno::display_name("Coat normal scale"),
+        anno::in_group("Coat"),
+        anno::soft_range(0.f,5.f),
+        anno::hard_range(-1000000.f,1000000.f),
+        anno::usage("coatNormalScale"),
+        alg::base::annotations::gamma_type(tex::gamma_linear),
+        alg::base::annotations::visible_by_default(false),
+        anno::ui_order(42)
+    ]]
+) [[
+	anno::display_name("Adobe Standard Material Definition")
+	, anno::description("Material definition for Adobe interchange.")
+	, anno::in_group("Materials")
+	, anno::key_words(string[]("adobe"))
+	, anno::copyright_notice("(c) 2021 Adobe Systems")
+	, anno::author("Adobe")
+	, anno::contributor("Daniel Babcock")
+	, anno::contributor("Michael Bond")
+	, anno::contributor("Nicolas Cathaud")
+	, anno::contributor("Paul Edmondson")
+	, anno::contributor("Alex Fleming")
+	, anno::contributor("Julien Guertault")
+	, anno::contributor("Milos Hasan")
+	, anno::contributor("Jay Hsia")
+	, anno::contributor("Erin Kim")
+	, anno::contributor("Peter Kutz")
+	, anno::contributor("David Larsson")
+	, anno::contributor("Gaetan Lassagne")
+	, anno::contributor("Marco Lukini")
+	, anno::contributor("Andrea Machizaud")
+	, anno::contributor("Baptiste Manteau")
+	, anno::contributor("Jeanette Matthews")
+	, anno::contributor("Krishna Mullia")
+	, anno::contributor("Jeremie Noguer")
+	, anno::contributor("Justin Patton")
+	, anno::contributor("Davide Pesare")
+	, anno::contributor("Vladimir Petkovic")
+	, anno::contributor("Charles Pina")
+	, anno::contributor("Fabrice Piquet")
+	, anno::contributor("Anthony Salvi")
+	, anno::contributor("Arvind Sekar")
+	, anno::contributor("Christophe Soum")
+	, anno::contributor("Nikolai Svakhin")
+	, anno::contributor("Nicolas Wirrmann")
+	, anno::contributor("Tobiah Woeltjen")
+	, anno::version(4,0,0)
+]] = ::alg::materials::asm::standard_scatter::standard(
+	base_color                : base_color,
+	roughness                 : roughness,
+	metallic                  : metallic,
+	opacity                   : opacity,
+	specular_level            : specular_level,
+	specular_edge_color       : specular_edge_color,
+	normal                    : normal,
+	normal_scale              : normal_scale,
+	height                    : height,
+	height_scale              : height_scale,
+	height_level              : height_level,
+	anisotropy                : anisotropy,
+	anisotropy_rotation       : anisotropy_rotation,
+	emission                  : emission,
+	emission_color            : emission_color,
+	sheen                     : sheen,
+	sheen_color               : sheen_color,
+	sheen_roughness           : sheen_roughness,
+	translucency              : translucency,
+	specular_ior              : specular_ior,
+	dispersion                : dispersion,
+	scatter                   : scatter,
+	scatter_color             : scatter_color,
+	scatter_distance          : scatter_distance,
+	scatter_distance_scale    : scatter_distance_scale,
+	scatter_red_shift         : scatter_red_shift,
+	scatter_rayleigh          : scatter_rayleigh,
+	coat                      : coat,
+	coat_color                : coat_color,
+	coat_roughness            : coat_roughness,
+	coat_ior                  : coat_ior,
+	coat_specular_level       : coat_specular_level,
+	coat_normal               : coat_normal,
+	coat_normal_scale         : coat_normal_scale,
+	thin_walled               : thin_walled,
+	absorption_color          : absorption_color,
+	absorption_distance       : absorption_distance
+);

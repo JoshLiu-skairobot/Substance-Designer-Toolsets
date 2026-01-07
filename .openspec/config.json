@@ -1,0 +1,12 @@
+{
+  "version": "0.17.2",
+  "enabled": true,
+  "skills": {
+    "claude": {
+      "enabled": true,
+      "path": ".claude/skills"
+    }
+  },
+  "initialized": true,
+  "timestamp": "2026-01-05T05:15:00.000Z"
+}

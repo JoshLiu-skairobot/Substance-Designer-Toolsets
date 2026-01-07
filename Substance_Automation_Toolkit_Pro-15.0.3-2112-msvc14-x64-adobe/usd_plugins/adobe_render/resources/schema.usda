@@ -1,0 +1,1342 @@
+#usda 1.0
+(
+    "This file describes schemata for code generation for APIs relating to rendering, created by Adobe."
+    subLayers = [
+        @usd/schema.usda@
+    ]
+)
+
+over "GLOBAL" (
+    customData = {
+        string libraryName      = "adobe_render"
+        string libraryPath      = "adobe/usd_schemas/render"
+        string libraryPrefix    = "AdobeRender"
+    }
+)
+{
+}
+
+class "SettingsAPI"
+(
+    inherits = </APISchemaBase>
+    doc = """AdobeRenderSettingsAPI encodes settings for Adobe's renderer which
+    expand on the settings defined by UsdRenderSettingsAPI.
+    """
+    customData = {
+        token apiSchemaType = "singleApply"
+
+        # Auto-apply to usd's built-in RenderSettings, meaning no need to call ::Apply,
+        # and no need to have the schema listed in the metadata of RenderSettings.
+        # - HasAPI<AdobeRenderSettingsAPI>() will always be true.
+        token[] apiSchemaAutoApplyTo = [ "RenderSettings" ]
+
+        # its only valid to apply this API schema to usd's built-in RenderSettings
+        token[] apiSchemaCanOnlyApplyTo = [ "RenderSettings" ]
+    }
+)
+{
+    token adobe:renderingTechnique = "rasterization" (
+        doc = """
+        Specifies the technique to used for rendering. "rasterization" uses a raster based
+        algorithm. "cpuPathTracing" uses a pathtracing algorithm on the CPU. "gpuPathTracing"
+        uses a pathtracing algorithm on the GPU.
+        """
+
+        allowedTokens = ["rasterization", "gpuPathTracing", "cpuPathTracing"]
+        valueDisplayNames = {
+            string rasterization = "Rasterization"
+            string gpuPathTracing = "GPU Path Tracing"
+            string cpuPathTracing = "CPU Path Tracing"
+        }
+        displayName = "Rendering Technique"
+        keepValueOnReload = true
+        uiOrder = 0
+
+        customData = {
+            string apiName = "renderingTechnique"
+        }
+    )
+
+    bool adobe:backfaceCullingEnabled = false (
+        doc = """
+        A true value will enable the culling of triangle meshes that have normals that face away from
+        the camera. A false value will disable backface culling.
+        """
+
+        displayName = "Backface Culling Enabled"
+        uiOrder = 1
+
+        customData = {
+            string apiName = "backfaceCullingEnabled"
+        }
+    )
+
+    bool adobe:displacementEnabled = true (
+        doc = """
+        Specifies whether displacement should be enabled.
+        """
+        displayName = "Displacement Enabled"
+        uiOrder = 2
+
+        customData = {
+            string apiName = "displacementEnabled"
+        }
+    )
+
+    float adobe:displacementThreshold = 0.0 (
+        doc = """
+        Sets up a threshold to enable/disable GPU tessellation.
+        """
+        displayName = "Displacement Threshold"
+        uiOrder = 3
+
+        customData = {
+            string apiName = "displacementThreshold"
+        }
+    )
+
+    int adobe:tessellationFactor = 8 (
+        doc = """
+        Sets the number of subdivisions for GPU tessellation.
+        """
+        range = (1, 32)
+        displayName = "Tessellation Factor"
+        uiOrder = 4
+
+        customData = {
+            string apiName = "tessellationFactor"
+        }
+    )
+
+    float adobe:metersPerUnit = 0.01 (
+        doc = """
+        Stage-level metadata that encodes a scene's linear unit of measure as meters per encoded unit.
+        """
+
+        displayName = "Meters Per Unit"
+        uiOrder = 5
+
+        customData = {
+            string apiName = "metersPerUnit"
+        }
+    )
+
+    token adobe:upAxis = "Y" (
+        doc = """
+        The upAxis provides the orientation of the groundplane, and may be used by other rendering
+        features which would benefit from understanding the coordinate system, and do not have a
+        related Xform to orient them for rendering. Valid values are "Y", and "Z".
+        """
+
+        allowedTokens = ["Y", "Z"]
+        displayName = "Up Axis"
+        uiOrder = 6
+
+        customData = {
+            string apiName = "upAxis"
+        }
+    )
+
+    token adobe:framebufferLineOrder = "decreasingY" (
+        doc = """
+        Specifies in what order the scan lines in the file are stored for framebuffer. Behavior for the below token is the same as `lineOrder` attribute in OpenEXR: https://openexr.com/en/latest/StandardAttributes.html
+        """
+        allowedTokens = ["decreasingY", "increasingY"]
+        valueDisplayNames = {
+            string decreasingY = "Decreasing Y"
+            string increasingY = "Increasing Y"
+        }
+        displayName = "Framebuffer Line Order"
+        uiOrder = 7
+    )
+
+    token adobe:diagnosticMode = "none" (
+        doc = """
+        Dictates the diagnostic mode to render.
+        """
+        allowedTokens = ["none", "emission", "facingRatio", "vertexColors", "albedo", "uvs", "geometricNormals", "originalShadingNormals", "shadingBasisNormals", "shadingBasisTangents", "shadingBasisBitangents", "primitives", "materials", "whiteDiffuse", "wireframeWorldSpace"]
+        valueDisplayNames = {
+            string none = "None"
+            string emission = "Emission"
+            string facingRatio = "Facing Ratio"
+            string vertexColors = "Vertex Colors"
+            string albedo = "Albedo"
+            string uvs = "UVs"
+            string geometricNormals = "Geometric Normals"
+            string originalShadingNormals = "Original Shading Normals"
+            string shadingBasisNormals = "Shading Basis Normals"
+            string shadingBasisTangents = "Shading Basis Tangents"
+            string shadingBasisBitangents = "Shading Basis Bitangents"
+            string materials = "Materials"
+            string primitives = "Primitives"
+            string whiteDiffuse = "White Diffuse"
+            string wireframeWorldSpace = "Wireframe (World Space)"
+        }
+        displayName = "Diagnostic Mode"
+        uiOrder = 8
+        keepValueOnReload = true
+    )
+
+    int4 adobe:tiledRenderingWindow = (0, 0, 0, 0) (
+        doc = """
+        Specify the window of the displayWindow to render with coordinates (xmin, ymin, xmax, ymax), all inclusive.
+        Using (0, 0, 0, 0) disables tiled rendering. The rendered output is written to the RenderBuffer at the
+        top-left corner.
+        """
+        customData = {
+            string apiName = "tiledRenderingWindow"
+        }
+        uiOrder = 9
+    )
+
+    bool adobe:groundplane:enabled = false (
+        doc = """
+        Controls the enablement of the entire groundplane feature. A false value
+        will disable the feature completely.
+        """
+
+        displayName = "Groundplane Enabled"
+        displayGroup = "Groundplane"
+        uiOrder = 100
+
+        customData = {
+            # omit the adobe- prefix in the Cpp API, to reduce verbosity.  This causes the attr
+            # accessor to be named GetGroundplaneEnabledAttr() rather than
+            # GetAdobeGroundplaneEnabledAttr()
+            string apiName = "groundplaneEnabled"
+        }
+    )
+
+    bool adobe:groundplane:shadowsEnabled = true (
+        doc = """
+        Controls the visibility of shadows on the groundplane. A false value
+        will cause all shadows to be ignored.
+        """
+
+        displayName = "Groundplane Shadows Enabled"
+        displayGroup = "Groundplane"
+        uiOrder = 101
+
+        customData = {
+            string apiName = "groundplaneShadowsEnabled"
+        }
+    )
+
+    float adobe:groundplane:shadowsOpacity = 1.0 (
+        doc = """
+        When shadows are enabled, allows control of the opacity of the shadows.
+        Valid values are in the range 0-1.
+        """
+
+        displayName = "Groundplane Shadows Opacity"
+        displayGroup = "Groundplane"
+        uiOrder = 102
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "groundplaneShadowsOpacity"
+        }
+    )
+
+    bool adobe:groundplane:reflectionsEnabled = false (
+        doc = """
+        Controls the visibility of all reflections on the groundplane. A false
+        value will cause all reflections to be ignored.
+        """
+
+        displayName = "Groundplane Reflections Enabled"
+        displayGroup = "Groundplane"
+        uiOrder = 103
+
+        customData = {
+            string apiName = "groundplaneReflectionsEnabled"
+        }
+    )
+
+    float adobe:groundplane:reflectionsOpacity = 1.0 (
+        doc = """
+        When reflections are enabled, allows control of the opacity of the
+        reflections. Valid values are in the range 0-1.
+        """
+
+        displayName = "Groundplane Reflections Opacity"
+        displayGroup = "Groundplane"
+        uiOrder = 104
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "groundplaneReflectionsOpacity"
+        }
+    )
+
+    float adobe:groundplane:reflectionsFresnel = 1.0 (
+        doc = """
+        When reflections are enabled, allows control of the intensity of fresnel
+        reflections.  Valid values are in the range 0-1.
+        """
+
+        displayName = "Groundplane Reflections Fresnel"
+        displayGroup = "Groundplane"
+        uiOrder = 105
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "groundplaneReflectionsFresnel"
+        }
+    )
+
+    float adobe:groundplane:reflectionsRoughness = 0.0 (
+        doc = """
+        When reflections are enabled, controls the material roughness of the
+        reflections. Valid values are in the range 0-1.
+        """
+
+        displayName = "Groundplane Reflections Roughness"
+        displayGroup = "Groundplane"
+        uiOrder = 106
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "groundplaneReflectionsRoughness"
+        }
+    )
+
+    float adobe:groundplane:height = 0.0 (
+        doc = """
+        Controls the height/offset of the groundplane. If authored, the value is expected to
+        have the appropriate bias baked in based on the scale of the scene.
+        """
+
+        displayName = "Groundplane Height"
+        displayGroup = "Groundplane"
+        uiOrder = 107
+
+        customData = {
+            string apiName = "groundplaneHeight"
+        }
+    )
+    
+    bool adobe:groundplane:localLightsEnabled = true (
+        doc = """
+        Controls controls whether direct lighting from local lights contributes to shadow catchers
+        """
+
+        displayName = "Groundplane Local Lights Enabled"
+        displayGroup = "Groundplane"
+        uiOrder = 108
+
+        customData = {
+            string apiName = "groundplaneLocalLightsEnabled"
+        }
+    )
+
+    color4f adobe:backgroundColor = (0.0, 0.0, 0.0, 1.0) (
+        doc = """
+        The background color is used in the color AOV when no geometry or other scene elements have
+        been hit by a ray.
+        """
+
+        displayName = "Background Color"
+        displayGroup = "Background"
+        uiOrder = 200
+
+        customData = {
+            string apiName = "backgroundColor"
+        }
+    )
+
+    bool adobe:compositingEnabled = false (
+        doc = """
+        A true value will enable combining the background and groundplane with the scene geometry in
+        the beauty comp AOV. A false value will disable the feature.
+        """
+
+        displayName = "Compositing Enabled"
+        displayGroup = "Background"
+        uiOrder = 201
+
+        customData = {
+            string apiName = "compositingEnabled"
+        }
+    )
+
+    bool adobe:envLightCameraVisibility = false (
+        doc = """
+        A true value will enable displaying the environment light texture in the background.
+        A false value will disable displaying the environment light texture.
+        """
+
+        displayName = "Env Light Camera Visibility"
+        displayGroup = "Background"
+        uiOrder = 202
+
+        customData = {
+            string apiName = "envLightCameraVisibility"
+        }
+    )
+
+    bool adobe:pathTracerViewBackgroundThroughTransmission = false (
+        doc = """
+        A true value enables the background image to be seen through transmissive or refractive
+        objects in the path tracer. When this is false, transmissive objects will show the refracted
+        image of the scene environment.
+        """
+
+        displayName = "View Background Through Transmission"
+        displayGroup = "Background"
+        uiOrder = 203
+
+        customData = {
+            string apiName = "pathTracerViewBackgroundThroughTransmission"
+        }
+    )
+
+    bool adobe:denoiserEnabled = false (
+        doc = """
+        A true value will enable a denoising pass once the image reaches a given number of
+        pixel samples. A false value will disable the denoising pass.
+        """
+        displayName = "Denoiser Enabled"
+        displayGroup = "Quality and Performance"
+        uiOrder = 300
+        keepValueOnReload = true
+
+        customData = {
+            string apiName = "denoiserEnabled"
+        }
+    )
+
+    int adobe:convergedPixelSamples = 1024 (
+        doc = """
+        Specifies the number of pixel samples to compute before the image is considered
+        to be converged.
+        """
+
+        displayName = "Converged Pixel Samples"
+        displayGroup = "Quality and Performance"
+        uiOrder = 301
+        keepValueOnReload = true
+
+        customData = {
+            string apiName = "convergedPixelSamples"
+        }
+    )
+
+    int adobe:threadLimit = 0 (
+        doc = """
+        Specifies the maximum number of CPU threads used for computation. The default
+        value of 0 will use all available cores on the CPU. Negative values will use
+        the maximum available cores minus the value specified.
+        """
+
+        displayName = "Thread Limit"
+        displayGroup = "Quality and Performance"
+        uiOrder = 302
+        isAdvanced = true
+        keepValueOnReload = true
+
+        customData = {
+            string apiName = "threadLimit"
+        }
+    )
+
+    token adobe:pixelCyclingType = "deviceOptimal" (
+        doc = """
+        Specifies the technique to use to lower compute resolution for interactive rendering
+        with the pathtracer. "noCycling" disabled pixel cycling and computes each full pixel sample,
+        "deviceOptimal" selects the ideal pixel cycling resolution based on the device used for
+        rendering. "fourByFour" samples 1/16 of the pixels per cycle pass. "eightByEight" samples
+        1/64 of the pixels per cycle pass. "blueNoise" samples adaptively a number of pixels and splat them to target an objective frame rate.
+        """
+
+        allowedTokens = ["noCycling", "deviceOptimal", "fourByFour", "eightByEight", "blueNoise"]
+        valueDisplayNames = {
+            string noCycling = "No Cycling"
+            string deviceOptimal = "Device Optimal"
+            string fourByFour = "4x4"
+            string eightByEight = "8x8"
+            string blueNoise = "Blue Noise"
+        }
+        displayName = "Pixel Cycling Type"
+        displayGroup = "Quality and Performance"
+        uiOrder = 303
+        keepValueOnReload = true
+
+        customData = {
+            string apiName = "pixelCyclingType"
+        }
+    )
+
+    token adobe:interactionMode = "offline" (
+        doc = """
+        Dictates whether Eclair prioritizes interactive or offline rendering.
+        """
+        allowedTokens = ["offline", "interactive"]
+        valueDisplayNames = {
+            string offline = "Offline"
+            string interactive = "Interactive"
+        }
+        displayName = "Interaction Mode"
+        displayGroup = "Quality and Performance"
+        uiOrder = 304
+        keepValueOnReload = true
+    )
+
+    token adobe:schedulingMode = "asynchronous" (
+        doc = """
+        Dictates how rendering work is scheduled in the render delegate.
+        'automatic' lets the render delegate choose what is best based on the runtime environment setup.
+        """
+        allowedTokens = ["asynchronous", "synchronous", "automatic"]
+        valueDisplayNames = {
+            string asynchronous = "Asynchronous"
+            string synchronous = "Synchronous"
+            string automatic = "Automatic"
+        }
+        displayName = "Scheduling Mode"
+        displayGroup = "Quality and Performance"
+        uiOrder = 305
+        keepValueOnReload = true
+    )
+
+    uint adobe:pixelCyclingCycleCount = 4 (
+        doc = """
+        Specifies the number of cycles to complete before pixel cycling is automatically turned off.
+        """
+
+        displayName = "Pixel Cycling Cycle Count"
+        displayGroup = "Quality and Performance"
+        uiOrder = 306
+        keepValueOnReload = true
+
+        customData = {
+            string apiName = "pixelCyclingCycleCount"
+        }
+    )
+
+    float adobe:blueNoiseCycling:targetFrameTimeInMilliSeconds = 50 (
+        doc = """
+        Target frame time (in milliseconds) objective to adjust blue noise pixel cycling adaptive sampling.
+        Putting this setting to 0 effectively disable the adaptive sampling behavior and instead resort to the user defined pixel per frame render setting value.
+        """
+
+        displayName = "Blue Noise Pixel Cycling Frame time"
+        displayGroup = "Quality and Performance"
+        uiOrder = 307
+        keepValueOnReload = true
+        range = (1, 120)
+
+        customData = {
+            string apiName = "blueNoiseCyclingTargetFrameTimeInMilliSeconds"
+        }
+    )
+
+    uint adobe:blueNoiseCycling:pixelCountPerFrame = 4 (
+        doc = """
+        Number of pixel samples to add per frame when using blue noise pixel cycling.
+        This render setting is overridden by the target frame time in milliseconds when greater than 0,
+        this effectively turn on adaptive sampling whereas this render setting results in a manual fixed sampling rate per frame.
+        """
+
+        displayName = "Blue Noise Pixel Cycling Pixels"
+        displayGroup = "Quality and Performance"
+        uiOrder = 308
+        keepValueOnReload = true
+        range = (4, 4096)
+        powerOf = 2
+
+        customData = {
+            string apiName = "blueNoiseCyclingPixelCountPerFrame"
+        }
+    )
+
+    int adobe:textureFilteringMaxAnisotropy = 16 (
+        doc = """
+        Max anisotropy for anisotropic texture filtering.
+        """
+
+        displayName = "Texture Filtering Max Anisotropy"
+        displayGroup = "Quality and Performance"
+        uiOrder = 309
+        range = (1, 16)
+
+        customData = {
+            string apiName = "textureFilteringMaxAnisotropy"
+        }
+    )
+
+    token adobe:rasterizerShadowMode = "noShadows" (
+        doc = """
+        Specifies the technique to use to render shadows when the renderingTechnique is "rasterization".
+        "noShadows" specifies no shadows will be rendered. "rayTraced" will trace shadow rays and
+        "voxelMarched" will march shadow rays into a voxelized scene. "shadowMapped" will use shadow
+        mapping.
+        """
+
+        allowedTokens = ["noShadows", "rayTraced", "voxelMarched", "shadowMapped"]
+        valueDisplayNames = {
+            string noShadows = "No Shadows"
+            string rayTraced = "Ray Traced"
+            string shadowMapped = "Shadow Mapped"
+            string voxelMarched = "Voxel Marched"
+        }
+        displayName = "Rasterization Shadow Mode"
+        displayGroup = "Rasterizer"
+        uiOrder = 400
+        keepValueOnReload = true
+
+        customData = {
+            string apiName = "rasterizationShadowMode"
+        }
+    )
+
+    int adobe:rasterizerShadowSampleCount = 1 (
+        doc = """
+        Specifies how many shadow rays are traced per pixel in the rasterizer.
+        """
+        range = (1, 32)
+        displayName = "Shadow Sample Count"
+        displayGroup = "Rasterizer"
+        uiOrder = 401
+
+        customData = {
+            string apiName = "rasterizerShadowSampleCount"
+        }
+    )
+
+    float adobe:rasterizerShadowOpacity = 0.75 (
+        doc = """
+        Specifies the opacity of shadows in the rasterizer, from 0.0 (no shadow) to 1.0 (full shadow).
+        """
+        range = (0.0, 1.0)
+        displayName = "Shadow Opacity"
+        displayGroup = "Rasterizer"
+        uiOrder = 402
+
+        customData = {
+            string apiName = "rasterizerShadowOpacity"
+        }
+    )
+
+    bool adobe:rasterizerOrderIndependentTransparencyEnabled = true (
+        doc = """
+        Specifies whether order-independent transparency should be enabled when the renderingTechnique is "Rasterization".
+        """
+        displayName = "Order-Independent Transparency Enabled"
+        displayGroup = "Rasterizer"
+        uiOrder = 403
+
+        customData = {
+            string apiName = "rasterizerOrderIndependentTransparencyEnabled"
+        }
+    )
+
+    bool adobe:rasterizerSubsurfaceScatteringEnabled = true (
+        doc = """
+        Specifies whether subsurface scattering should be enabled when the renderingTechnique is "Rasterization".
+        """
+        displayName = "Subsurface Scattering Enabled"
+        displayGroup = "Rasterizer"
+        uiOrder = 404
+
+        customData = {
+            string apiName = "rasterizerSubsurfaceScatteringEnabled"
+        }
+    )
+
+    int adobe:rasterizerSubsurfaceScatteringSampleCount = 16 (
+        doc = """
+        Specifies how many samples are taken per pixel for SSS in the rasterizer.
+        """
+        range = (1, 32)
+        displayName = "SSS Sample Count"
+        displayGroup = "Rasterizer"
+        uiOrder = 405
+
+        customData = {
+            string apiName = "rasterizerSubsurfaceScatteringSampleCount"
+        }
+    )
+
+    bool adobe:rasterizerAccumulationAntialiasingEnabled = true (
+        doc = """
+        Specifies whether accumulation antialiasing should be enabled when the renderingTechnique is "Rasterization".
+        """
+        displayName = "Accumulation Antialiasing Enabled"
+        displayGroup = "Rasterizer"
+        uiOrder = 406
+
+        customData = {
+            string apiName = "rasterizerAccumulationAntialiasingEnabled"
+        }
+    )
+
+    int adobe:rasterizerVoxelGridResolution = 256 (
+        doc = """
+        Dictates the resolution of the voxel grid used in voxel marching in the rasterizer.
+        """
+        range = (1, 2048)
+        powerOf = 2
+        displayName = "Rasterization Voxel Grid Resolution"
+        displayGroup = "Rasterizer"
+        uiOrder = 407
+    )
+
+    token adobe:rasterizerSpecularIBLTechnique = "prefiltered" (
+        doc = """
+        Specifies the technique used to compute specular reflections from IBL.
+        "prefiltered" uses the pre-filtered environment map and pre-computed BRDF lookup texture. 
+        "runtimeSampled" samples the unfiltered environment map and evaluates the BRDF integral at runtime.
+        """
+
+        allowedTokens = ["prefiltered", "runtimeSampled"]
+        valueDisplayNames = {
+            string prefiltered = "Pre-filtered"
+            string runtimeSampled = "Runtime Sampled"
+        }
+        displayName = "Specular IBL Technique"
+        displayGroup = "Rasterizer"
+        uiOrder = 408
+        keepValueOnReload = true
+
+        customData = {
+            string apiName = "rasterizerSpecularIBLTechnique"
+        }
+    )
+
+    int adobe:rasterizerSpecularIBLRuntimeSampleCount = 32 (
+        doc = """
+        Specifies how many samples are used to compute the specular reflections from IBL
+        when the technique is set to "runtimeSampled".
+        """
+        range = (1, 1024)
+        displayName = "Specular IBL Runtime Sample Count"
+        displayGroup = "Rasterizer"
+        uiOrder = 409
+
+        customData = {
+            string apiName = "rasterizerSpecularIBLRuntimeSampleCount"
+        }
+    )
+
+    bool adobe:postfx:toneMapping:enabled = false (
+        doc = """
+        Specifies whether the ToneMapping post effect should be enabled.
+        """
+        displayName = "Enabled"
+        displayGroup = "PostFX - Tone Mapping"
+        uiOrder = 500
+
+        customData = {
+            string apiName = "toneMappingEnabled"
+        }
+    )
+
+    token adobe:postfx:toneMapping:mode = "neutral" (
+        doc = """
+        Specifies which tone mapping mode to apply.
+        """
+
+        displayName = "Mode"
+        displayGroup = "PostFX - Tone Mapping"
+        uiOrder = 501
+
+        allowedTokens = ["reinhard", "atan", "exp", "log", "ACES", "HEJL", "neutral", "AgX", "PBRNeutral"]
+        valueDisplayNames = {
+            string reinhard = "Reinhard"
+            string atan = "Atan"
+            string exp = "Exp"
+            string log = "Log"
+            string ACES = "ACES"
+            string HEJL = "HEJL"
+            string neutral = "Neutral"
+            string AgX = "AgX"
+            string PBRNeutral = "PBR Neutral"
+        }
+    )
+
+    bool adobe:postfx:bloom:enabled = false (
+        doc = """
+        Specifies whether the Bloom post effect should be enabled.
+        """
+        displayName = "Enabled"
+        displayGroup = "PostFX - Bloom"
+        uiOrder = 600
+
+        customData = {
+            string apiName = "bloomEnabled"
+        }
+    )
+
+    float adobe:postfx:bloom:threshold = 1.5 (
+        doc = """
+        Bloom threshold.
+        """
+
+        displayName = "Threshold"
+        displayGroup = "PostFX - Bloom"
+        uiOrder = 601
+        range = (0.0, 10.0)
+
+        customData = {
+            string apiName = "bloomThreshold"
+        }
+    )
+
+    float adobe:postfx:bloom:falloff = 1.0 (
+        doc = """
+        Bloom falloff.
+        """
+
+        displayName = "Falloff"
+        displayGroup = "PostFX - Bloom"
+        uiOrder = 602
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "bloomFalloff"
+        }
+    )
+
+    float adobe:postfx:bloom:level = 1.0 (
+        doc = """
+        Bloom level.
+        """
+
+        displayName = "Level"
+        displayGroup = "PostFX - Bloom"
+        uiOrder = 603
+        range = (0.0, 10.0)
+
+        customData = {
+            string apiName = "bloomLevel"
+        }
+    )
+
+    float adobe:postfx:bloom:colorShift = 0.0 (
+        doc = """
+        Bloom color shift.
+        """
+
+        displayName = "Color Shift"
+        displayGroup = "PostFX - Bloom"
+        uiOrder = 604
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "bloomColorShift"
+        }
+    )
+
+    bool adobe:postfx:depthOfField:enabled = false (
+        doc = """
+        Specifies whether the Depth of Field post effect should be enabled.
+        """
+        displayName = "Enabled"
+        displayGroup = "PostFX - Depth of Field"
+        uiOrder = 700
+
+        customData = {
+            string apiName = "depthOfFieldEnabled"
+        }
+    )
+
+    float adobe:postfx:depthOfField:maxRadius = 64.0 (
+        doc = """
+        Specifies the circle of confusion's max radius in pixel.
+        """
+        displayName = "Max Radius"
+        displayGroup = "PostFX - Depth of Field"
+        uiOrder = 701
+        range = (1.0, 256)
+
+        customData = {
+            string apiName = "depthOfFieldMaxRadius"
+        }
+    )
+
+    float adobe:postfx:depthOfField:compositeStrength = 0.3 (
+        doc = """
+        Specifies the depth of field compositing strength.
+        """
+        displayName = "Composite Strength"
+        displayGroup = "PostFX - Depth of Field"
+        uiOrder = 702
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "depthOfFieldCompositeStrength"
+        }
+    )
+
+    float adobe:postfx:depthOfField:aberration = 0.0 (
+        doc = """
+        Specifies the amount of aberration to apply.
+        """
+        displayName = "Longitudinal Aberration"
+        displayGroup = "PostFX - Depth of Field"
+        uiOrder = 703
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "depthOfFieldAberration"
+        }
+    )
+
+    bool adobe:postfx:depthOfField:achromaticAberration = true (
+        doc = """
+        Specifies whether the aberration should be achromatic or not.
+        """
+        displayName = "Achromatic Aberration"
+        displayGroup = "PostFX - Depth of Field"
+        uiOrder = 704
+
+        customData = {
+            string apiName = "depthOfFieldAchromaticAberration"
+        }
+    )
+
+    bool adobe:postfx:depthOfField:catsEye = false (
+        doc = """
+        Specifies whether a cat's eye effect should be applied.
+        """
+        displayName = "Cat's Eye"
+        displayGroup = "PostFX - Depth of Field"
+        uiOrder = 705
+
+        customData = {
+            string apiName = "depthOfFieldCatsEye"
+        }
+    )
+
+    bool adobe:postfx:glare:enabled = false (
+        doc = """
+        Specifies whether the Glare post effect should be enabled.
+        """
+        displayName = "Enabled"
+        displayGroup = "PostFX - Glare"
+        uiOrder = 800
+
+        customData = {
+            string apiName = "glareEnabled"
+        }
+    )
+
+    float adobe:postfx:glare:level = 1.0 (
+        doc = """
+        Specifies the level of glare to apply.
+        """
+        displayName = "Level"
+        displayGroup = "PostFX - Glare"
+        uiOrder = 801
+        range = (0.0, 10.0)
+
+        customData = {
+            string apiName = "glareLevel"
+        }
+    )
+
+    float adobe:postfx:glare:threshold = 1.5 (
+        doc = """
+        Specifies the glare threshold.
+        """
+        displayName = "Threshold"
+        displayGroup = "PostFX - Glare"
+        uiOrder = 802
+        range = (0.0, 10.0)
+
+        customData = {
+            string apiName = "glareThreshold"
+        }
+    )
+
+    float adobe:postfx:glare:aberration = 1.15 (
+        doc = """
+        Specifies the amount of aberration from the glare effect.
+        """
+        displayName = "Aberration"
+        displayGroup = "PostFX - Glare"
+        uiOrder = 803
+        range = (0.8, 1.25)
+
+        customData = {
+            string apiName = "glareAberration"
+        }
+    )
+
+    int adobe:postfx:glare:effectResolution = 1024 (
+        doc = """
+        Specifies the glare resolution.
+        """
+        displayName = "Effect Resolution"
+        displayGroup = "PostFX - Glare"
+        uiOrder = 804
+        range = (128, 2048)
+        powerOf = 2
+
+        customData = {
+            string apiName = "glareEffectResolution"
+        }
+    )
+
+    float adobe:postfx:glare:wavelengths = 6.0 (
+        doc = """
+        Specifies the glare wavelengths.
+        """
+        displayName = "Wavelengths"
+        displayGroup = "PostFX - Glare"
+        uiOrder = 805
+        range = (3.0, 48.0)
+
+        customData = {
+            string apiName = "glareWavelengths"
+        }
+    )
+
+    bool adobe:postfx:lensFlare:enabled = false (
+        doc = """
+        Specifies whether the Lens Flare post effect should be enabled.
+        """
+        displayName = "Enabled"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 900
+
+        customData = {
+            string apiName = "lensFlareEnabled"
+        }
+    )
+
+    float adobe:postfx:lensFlare:level = 1.0 (
+        doc = """
+        Specifies the level of lens flare to apply.
+        """
+        displayName = "Level"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 901
+        range = (0.0, 10.0)
+
+        customData = {
+            string apiName = "lensFlareLevel"
+        }
+    )
+
+    float adobe:postfx:lensFlare:apertureScale = 1.0 (
+        doc = """
+        Specifies the lens flare aperture scale.
+        """
+        displayName = "Aperture Scale"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 902
+        range = (0.1, 10.0)
+
+        customData = {
+            string apiName = "lensFlareApertureScale"
+        }
+    )
+
+    float adobe:postfx:lensFlare:coatThickness = 550.0 (
+        doc = """
+        Specifies the lens flare coat thickness.
+        """
+        displayName = "Coat Thickness"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 903
+        range = (450.0, 650.0)
+
+        customData = {
+            string apiName = "lensFlareCoatThickness"
+        }
+    )
+
+    float adobe:postfx:lensFlare:coatIOR = 1.38 (
+        doc = """
+        Specifies the lens flare coat IOR.
+        """
+        displayName = "Coat IOR"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 904
+        range = (1.0, 1.5)
+
+        customData = {
+            string apiName = "lensFlareCoatIOR"
+        }
+    )
+
+    float adobe:postfx:lensFlare:vignetting = 1.0 (
+        doc = """
+        Specifies the amount of lens flare vignetting.
+        """
+        displayName = "Vignetting"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 905
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "lensFlareVignetting"
+        }
+    )
+
+    float adobe:postfx:lensFlare:occlusionScale = 1.0 (
+        doc = """
+        Specifies the lens flare occlusion scale.
+        """
+        displayName = "Occlusion Scale"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 906
+        range = (0.01, 100.0)
+
+        customData = {
+            string apiName = "lensFlareOcclusionScale"
+        }
+    )
+
+    float adobe:postfx:lensFlare:occlusionSmoothness = 0.1 (
+        doc = """
+        Specifies the lens flare occlusion smoothness.
+        """
+        displayName = "Occlusion Smoothness"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 907
+        range = (0.01, 1.0)
+
+        customData = {
+            string apiName = "lensFlareOcclusionSmoothness"
+        }
+    )
+
+    int adobe:postfx:lensFlare:effectResolution = 512 (
+        doc = """
+        Specifies the lens flare resolution.
+        """
+        displayName = "Effect Resolution"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 908
+        range = (128, 2048)
+        powerOf = 2
+
+        customData = {
+            string apiName = "lensFlareEffectResolution"
+        }
+    )
+
+    float adobe:postfx:lensFlare:uniqueGhosts = 24.0 (
+        doc = """
+        Specifies the amount of lens flare unique ghosts.
+        """
+        displayName = "Unique Ghosts"
+        displayGroup = "PostFX - Lens Flare"
+        uiOrder = 909
+        range = (4.0, 200.0)
+
+        customData = {
+            string apiName = "lensFlareUniqueGhosts"
+        }
+    )
+
+    token adobe:bitangentInterpolation = "faceVarying" (
+        doc = """
+        Assuming bitangents are generated from normal and tangent information,
+        specifies at which rate bitangent information are generated:
+        - faceVarying: Normals and tangents are first interpolated across vertices over a polygon face, and bitangents are generated based on those interpolated normal and tangent.
+        - vertex: Bitangents are generated per vertex using normals and bitangents, and then interpolated across vertices over a polygon face.
+        """
+        displayName = "Bitangent Interpolation Mode"
+
+        allowedTokens = ["faceVarying", "vertex"]
+        valueDisplayNames = {
+            string faceVarying = "Interpolated over face"
+            string vertex = "Per vertex"
+        }
+        isAdvanced = true
+
+        customData = {
+            string apiName = "bitangentInterpolation"
+        }
+    )
+
+    bool adobe:flatShading:enabled = false (
+        doc = """
+        A true value will enable the flat shading effect. A false value will disable it.
+        """
+
+        displayName = "Flat Shading Enabled"
+        displayGroup = "Flat Shading"
+        uiOrder = 1000
+
+        customData = {
+            string apiName = "flatShadingEnabled"
+        }
+    )
+
+    token adobe:flatShading:mode = "toonShading" (
+        doc = """
+        Specifies the mode used for flat shading. "toonShading" uses a toon shader with highlights and 
+        dark regions. "colorFillShading" fills the regions with the albedo multiplied with a constant. 
+        "pbrShading" reserves the PBR shading but add detailed strokes around. "detailedStrokeShading" 
+        produces a rendering with stroke with details. "objectContourShading" produces a coarse shading
+        with object's contours only.
+        """
+
+        allowedTokens = ["toonShading", "colorFillShading", "pbrShading"]
+        valueDisplayNames = {
+            string toonShading = "Toon Shading"
+            string colorFillShading = "Color Fill Shading"
+            string pbrShading = "PBR Shading"
+        }
+        displayName = "Flat Shading Mode"
+        displayGroup = "Flat Shading"
+        keepValueOnReload = true
+        uiOrder = 1001
+
+        customData = {
+            string apiName = "flatShadingMode"
+        }
+    )
+
+    float adobe:flatShading:strokeThickness = 1.0 (
+        doc = """
+        Specifies the thickness of stroke when using flat shading
+        """
+        displayName = "Flat Shading Stroke Thickness"
+        displayGroup = "Flat Shading"
+        uiOrder = 1002
+        range = (0.0, 5.0)
+
+        customData = {
+            string apiName = "flatShadingStrokeThickness"
+        }
+    )
+
+    color3f adobe:flatShading:strokeColor = (0.0, 0.0, 0.0) (
+        doc = """
+        Specifies the color of the stroke when using flat shading.
+        """
+        displayName = "Flat Shading Stroke Color"
+        displayGroup = "Flat Shading"
+        uiOrder = 1003
+
+        customData = {
+            string apiName = "flatShadingStrokeColor"
+        }
+    )
+
+    float adobe:flatShading:strokeColorBlending = 0.0 (
+        doc = """
+        Specifies the how much the constant stroke color is blended with the object color.
+        """
+        displayName = "Flat Shading Stroke Color Blending"
+        displayGroup = "Flat Shading"
+        uiOrder = 1004
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "flatShadingStrokeColorBlending"
+        }
+    )
+
+    color3f adobe:flatShading:fillColor = (1.0, 1.0, 1.0) (
+        doc = """
+        Specifies the color to override the filling when using flat shading.
+        """
+        displayName = "Flat Shading Fill Color"
+        displayGroup = "Flat Shading"
+        uiOrder = 1005
+
+        customData = {
+            string apiName = "flatShadingFillColor"
+        }
+    )
+
+    float adobe:flatShading:fillColorBlending = 0.0 (
+        doc = """
+        Specifies the how much the constant fill color is blended with the shaded color.
+        """
+        displayName = "Flat Shading Fill Color Blending"
+        displayGroup = "Flat Shading"
+        uiOrder = 1006
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "flatShadingFillColorBlending"
+        }
+    )
+
+    float adobe:flatShading:toonSpecularThreshold = 0.405 (
+        doc = """
+        Specifies the threshold for the specular highlight when using the toon shading mode. The larger
+        the threshold, the smaller the highlight size.
+        """
+        displayName = "Flat Shading Toon Specular Threshold"
+        displayGroup = "Flat Shading"
+        uiOrder = 1007
+        range = (0.0, 1.0)
+
+        customData = {
+            string apiName = "flatShadingToonSpecularThreshold"
+        }
+    )
+
+    color3f adobe:flatShading:toonSpecular = (0.96, 0.96, 0.96) (
+        doc = """
+        Specifies the color of the specular highlight when using the Toon shading mode. Setting it to
+        black means turning off the specular highlight.
+        """
+        displayName = "Flat Shading Toon Specular"
+        displayGroup = "Flat Shading"
+        uiOrder = 1008
+
+        customData = {
+            string apiName = "flatShadingToonSpecular"
+        }
+    )
+
+    bool adobe:flatShading:shadowEnabled = true (
+        doc = """
+        A true value will enable the shadow in flat shading effect. A false value will disable it.
+        """
+
+        displayName = "Flat Shading Shadow Enabled"
+        displayGroup = "Flat Shading"
+        uiOrder = 1009
+
+        customData = {
+            string apiName = "flatShadingShadowEnabled"
+        }
+    )
+
+    token adobe:flatShading:shadowMode = "hardShadow" (
+        doc = """
+        Specifies the shadow style used for flat shading. "hardShadow" uses the major direction of IBL to
+        create a directional light and produce a hard shadow effect. "softShadow" calculates the shadow
+        the same as in PBR shading.
+        """
+
+        allowedTokens = ["hardShadow", "softShadow"]
+        valueDisplayNames = {
+            string hardShadow = "Hard Shadow"
+            string softShadow = "Soft Shadow"
+        }
+        displayName = "Flat Shading Shadow Mode"
+        displayGroup = "Flat Shading"
+        keepValueOnReload = true
+        uiOrder = 1010
+
+        customData = {
+            string apiName = "flatShadingShadowMode"
+        }
+    )
+
+    color3f adobe:flatShading:shadowTint = (0.0, 0.0, 0.0) (
+        doc = """
+        Specifies the tint of the shadow for flat shading. Setting it to
+        black means no tinting.
+        """
+        displayName = "Flat Shading Shadow Tint"
+        displayGroup = "Flat Shading"
+        uiOrder = 1011
+
+        customData = {
+            string apiName = "flatShadingShadowTint"
+        }
+    )
+}

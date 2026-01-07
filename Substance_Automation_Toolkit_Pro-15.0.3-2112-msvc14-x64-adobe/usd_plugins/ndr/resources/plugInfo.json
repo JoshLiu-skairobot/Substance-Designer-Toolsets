@@ -1,0 +1,25 @@
+{
+  "Plugins" : 
+  [
+    {
+      "Info" : 
+      {
+        "Types" : 
+        {
+          "NdrDiscoveryPlugin" : {},
+          "NdrParserPlugin" : {},
+          "_NdrFilesystemDiscoveryPlugin" : 
+          {
+            "bases" : [ "NdrDiscoveryPlugin" ],
+            "displayName" : "Filesystem Discovery"
+          }
+        }
+      },
+      "LibraryPath" : "../../usd_ndr.dll",
+      "Name" : "ndr",
+      "ResourcePath" : "resources",
+      "Root" : "..",
+      "Type" : "library"
+    }
+  ]
+}

@@ -1,0 +1,304 @@
+mdl 1.6;
+
+import ::anno::*;
+import ::base::*;
+import ::df::*;
+import ::math::*;
+import ::state::*;
+import ::tex::*;
+
+import ::adobe::anisotropy::*;
+import ::adobe::convert::*;
+import ::adobe::volume::*;
+
+import ::alg::base::annotations::*;
+import ::alg::base::core::*;
+
+export material standard(
+    varying color base_color = color(0.5f),
+    varying float roughness = 0.3f,
+    varying float metallic = 0.f,
+    varying float opacity = 1.f,
+    varying float specular_level = 0.5f,
+    varying color specular_edge_color = color(1.f),
+    varying float3 normal = state::normal(),
+    uniform float normal_scale = 1.f,
+    varying float height = 0.5f,
+    uniform float height_scale = 1.0f,
+    uniform float height_level = 0.5f,
+    varying float anisotropy = 0.f,
+    varying float anisotropy_rotation = 0.f,
+    uniform float emission = 0.f,
+    varying color emission_color = color(1.f),
+    varying float sheen = 0.f,
+    varying color sheen_color = color(1.f),
+    varying float sheen_roughness = 0.5f,
+    varying float translucency = 0.f,
+    uniform bool thin_walled = false,
+    varying color absorption_color = color(1.f),
+    uniform float absorption_distance = 0.f,
+    uniform float specular_ior = 1.5f,
+    uniform float dispersion = 0.f,
+    uniform bool scatter = false,
+	uniform float sssRefractionRoughness = 1.f,
+    varying color scatter_color = color(1.f),
+    uniform float scatter_distance = 1.f,
+    varying color scatter_distance_scale = color(1.f, 1.f, 1.f),
+	uniform color sssColor = color(1.f,1.f,1.f),
+    uniform float scatter_red_shift = 0.f,
+    uniform float scatter_rayleigh = 0.f,
+    uniform float scatter_anisotropy = 0.f,
+    varying float coat = 0.f,
+    varying color coat_color = color(1.f),
+    varying float coat_roughness = 0.f,
+    uniform float coat_ior = 1.6f,
+    varying float coat_specular_level = 0.5f,
+    varying float3 coat_normal = state::normal(),
+    uniform float coat_normal_scale = 1.f,
+    varying float thin_film_thickness = 0.f,
+    uniform float thin_film_thickness_min = 0.f,
+    uniform float thin_film_thickness_max = 1200.f,
+    uniform float thin_film_ior = 1.3f)
+[[
+    anno::description("Material definition for Adobe interchange. Modified to match Substance Pt/Ds SSS."),
+    anno::contributor("Christophe Soum"),
+    anno::version(4,0,0),
+	anno::hidden()
+]]
+ = let {
+
+    float specular_level_offset = 0.5f;
+    float coat_ior_adjusted = adobe::convert::adjust_ior_with_specular_level(coat_ior, coat_specular_level, specular_level_offset);
+
+    // TO DO: apply combine_normal_and_height logic
+    float3 scaled_coat_normal = adobe::convert::scale_normal(coat_normal, coat_normal_scale);
+    float3 scaled_base_normal = adobe::convert::scale_normal(normal, normal_scale);
+
+    uniform float abbe_number = 20.f*(1.f - math::log(dispersion));
+
+    base::anisotropy_return base_anisotropy_values =
+        adobe::anisotropy::anisotropy_conversion (
+            roughness: roughness,
+            anisotropy: anisotropy,
+            anisotropy_rotation: anisotropy_rotation
+        );
+
+    base::anisotropy_return coat_anisotropy_values =
+        adobe::anisotropy::anisotropy_conversion (
+            roughness: coat_roughness,
+            anisotropy: 0.f,
+            anisotropy_rotation: 0.f
+        );
+
+    float3 displacement =
+        alg::base::core::displacement(
+			height         : height,
+			heightScale    : height_scale,
+			scalarZeroValue: height_level,
+			tiling         : 1.f
+		);
+
+    bsdf reflective_lobe = df::microfacet_ggx_smith_bsdf(
+        roughness_u: base_anisotropy_values.roughness_u,
+        roughness_v: base_anisotropy_values.roughness_v,
+        tangent_u: base_anisotropy_values.tangent_u,
+        tint: color(1),
+        multiscatter_tint: color(1),
+        mode: df::scatter_reflect
+    );
+
+    bsdf metallic_lobe = df::directional_factor(
+        normal_tint: base_color,
+        grazing_tint: specular_edge_color,
+        exponent: 5.0f,
+        base: reflective_lobe
+    );
+
+    bsdf specular_edge_color_lobe = df::tint(
+        tint: specular_edge_color,
+        base: reflective_lobe
+    );
+
+    bsdf diffuse_lobe = df::diffuse_reflection_bsdf(
+        tint: base_color,
+        roughness: 0
+    );
+
+    bsdf diffuse_normal_lobe = df::weighted_layer(
+        weight: 1.f,
+        layer: diffuse_lobe,
+        base: bsdf(),
+        normal: scaled_base_normal
+    );
+
+    color transmission_color = scatter ? math::sqrt(scatter_color) : color(1.0f);
+
+    // Transmission with scatter
+    bsdf scatter_transmit_lobe = df::weighted_layer(
+        weight: sssRefractionRoughness==1.f ? 1.f : 0.f,
+        layer: df::diffuse_transmission_bsdf(
+            tint: transmission_color),
+        base: df::microfacet_ggx_smith_bsdf(       // legacy SSS type translucency
+            tint: transmission_color,
+            roughness_u: sssRefractionRoughness,
+            mode: df::scatter_transmit),
+        normal: scaled_base_normal);
+
+    bsdf scatter_transmit_weighted_lobe = df::color_weighted_layer(
+        weight: scatter ? scatter_distance_scale : color(1.0),
+        layer: scatter_transmit_lobe,
+        base: df::weighted_layer(
+            weight: 1.f,
+            layer: df::diffuse_reflection_bsdf(tint: scatter_color, roughness: 0.0f),
+            normal: scaled_base_normal)
+    );
+
+    // Transmission without scatter
+    bsdf scatter_reflect_transmit_lobe = df::microfacet_ggx_smith_bsdf(
+        roughness_u: base_anisotropy_values.roughness_u,
+        roughness_v: base_anisotropy_values.roughness_v,
+        tangent_u: base_anisotropy_values.tangent_u,
+        tint: color(1),
+        multiscatter_tint: color(1),
+        mode: df::scatter_reflect_transmit
+    );
+
+    bsdf scatter_reflect_transmit_tinted_lobe = df::tint(
+        reflection_tint: specular_edge_color,
+        transmission_tint: absorption_distance == 0.f ? absorption_color : color(1.f),
+        base: scatter_reflect_transmit_lobe
+    );
+
+    bsdf transmission_lobe = df::weighted_layer(
+        weight: scatter ? 1.f : 0.f,
+        layer: scatter_transmit_weighted_lobe,
+        base: scatter_reflect_transmit_tinted_lobe,
+        normal: scaled_base_normal
+    );
+
+    bsdf diffuse_transmission_lobe = df::weighted_layer(
+        weight: translucency,
+        layer: transmission_lobe,
+        base: diffuse_normal_lobe,
+        normal: scaled_base_normal
+    );
+
+	// Trash transmission, why?
+////    float specular_ior_adjusted = adobe::convert::adjust_ior_with_specular_level(specular_ior, specular_level, specular_level_offset);
+////    bsdf dielectric_lobe = df::fresnel_layer(
+////        ior: specular_ior_adjusted,
+////        weight: 1.f,
+////        layer: specular_edge_color_lobe,
+////        base: diffuse_transmission_lobe,
+////        normal: scaled_base_normal
+////    );
+
+    // df::fresnel_layer non working, use Schlick approximation instead
+    float specular_f0 = specular_level/specular_level_offset * math::pow((1.0-specular_ior)/(1.0+specular_ior),2.0);
+    bsdf dielectric_lobe = df::custom_curve_layer(
+        normal_reflectivity: specular_f0,
+        layer: specular_edge_color_lobe,
+        base: diffuse_transmission_lobe,
+        normal: scaled_base_normal
+    );
+
+    bsdf base_surface_lobe = df::weighted_layer(
+        weight: metallic,
+        layer: metallic_lobe,
+        base: dielectric_lobe,
+        normal: scaled_base_normal
+    );
+
+    bsdf thin_film_lobe = df::thin_film(
+        ior: color(thin_film_ior),
+        thickness: ::math::lerp(thin_film_thickness_min, thin_film_thickness_max, thin_film_thickness),
+        base: base_surface_lobe
+    );
+
+    bsdf sheen_lobe = df::sheen_bsdf(
+        roughness: sheen_roughness * sheen_roughness,
+        tint: sheen_color
+    );
+
+    bsdf sheen_blend_lobe = df::custom_curve_layer(
+        normal_reflectivity: 0.5f,
+        grazing_reflectivity: 1.f,
+        exponent: 5.f,
+        weight: sheen,
+        layer: sheen_lobe,
+        base: thin_film_lobe,
+        normal: scaled_base_normal
+    );
+
+    bsdf tint_lobe = df::tint(
+        tint: ::math::lerp(color(1.f), coat_color, ::math::sqrt(coat)),
+        base: sheen_blend_lobe
+    );
+
+    bsdf coat_lobe = df::microfacet_ggx_smith_bsdf(
+        roughness_u: coat_anisotropy_values.roughness_u,
+        roughness_v: coat_anisotropy_values.roughness_v,
+        tangent_u: coat_anisotropy_values.tangent_u,
+        mode: df::scatter_reflect
+    );
+
+    bsdf scattering_lobe = df::fresnel_layer(
+        ior: coat_ior_adjusted,
+        weight: coat,
+        layer: coat_lobe,
+        base: tint_lobe,
+        normal: scaled_coat_normal
+    );
+
+    material_emission standard_emission(
+        emission: df::diffuse_edf(),
+        intensity: alg::base::core::default_emission_intensity(
+            emission: emission,
+            emission_color: emission_color
+        ),
+        mode: intensity_radiant_exitance
+    );
+
+    material_surface standard_surface(
+        scattering: scattering_lobe,
+        emission: standard_emission
+    );
+
+    adobe::volume::volume_return absorption_volume_coefficients = adobe::volume::volume_conversion(
+        absorption_color: absorption_color,
+        absorption_distance: absorption_distance,
+        scattering: false
+    );
+
+	//- Volume Scattering fixed
+    float sss_scale_factor = 0.333f;
+    float sss_scale_matching_opengl = math::max( scatter_distance * sss_scale_factor, 0.001 );
+
+    color sss_color = sssColor * color(::alg::base::core::scattering_coeffs_from_rayleigh_redshift(
+        rayleigh:  scatter_rayleigh,
+        red_shift: scatter_red_shift));
+    float sss_color_saturation = 0.85;
+    color adjusted_sss_color = ( sss_color - color( 0.5 ) ) * sss_color_saturation + color( 0.5 );
+
+    color scatter_absorption_coef = math::log(adjusted_sss_color) / -(sss_scale_matching_opengl*100.0);
+    color scatter_scattering_coef = math::log(adjusted_sss_color) / -(sss_scale_matching_opengl);
+
+    material_volume standard_volume(
+        scattering: scatter_anisotropy!=0 ? df::anisotropic_vdf(scatter_anisotropy) : vdf(),
+        absorption_coefficient: scatter ? scatter_absorption_coef : absorption_volume_coefficients.absorption_coefficient,
+        scattering_coefficient: scatter ? scatter_scattering_coef : color()
+    );
+
+    material_geometry standard_geometry(
+        displacement: displacement,
+        cutout_opacity: opacity,
+        normal: state::normal()
+    );
+
+} in material(
+    thin_walled: thin_walled,
+    surface : standard_surface,
+    ior : dispersion==0.0 ? color(specular_ior) : base::abbe_number_ior(specular_ior, abbe_number),
+    volume : standard_volume,
+    geometry : standard_geometry
+);

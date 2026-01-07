@@ -1,0 +1,14 @@
+mdl 1.6;
+
+import ::anno::deprecated;
+import ::tex::*;
+
+export annotation sampler_usage(string name, string label = "");
+
+export annotation gamma_type(::tex::gamma_mode type);
+
+export annotation visible_by_default(bool visible = true);
+
+export annotation widget(string name) [[ anno::deprecated("Use enum instead") ]];
+
+export annotation values(string values) [[ anno::deprecated("Use enum instead") ]];

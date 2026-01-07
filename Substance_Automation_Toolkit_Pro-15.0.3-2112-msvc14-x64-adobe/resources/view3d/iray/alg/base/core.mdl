@@ -1,0 +1,384 @@
+mdl 1.6;
+
+using ::df import *;
+using ::state import *;
+using ::base import *;
+using ::tex import *;
+using ::anno import *;
+using ::math import *;
+using ::limits import *;
+
+export const string ALLEGORITHMIC_COPYRIGHT = "THE MDL MATERIALS ARE PROVIDED PURSUANT TO AN END USER LICENSE AGREEMENT, WHICH WAS ACCEPTED IN ORDER TO GAIN ACCESS TO THIS FILE. IN PARTICULAR, THE MDL MATERIALS ARE PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL ALLEGORITHMIC CORPORATION BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, INCLUDING ANY GENERAL, SPECIAL,  INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF THE USE OR INABILITY TO USE THE MDL MATERIALS OR FROM OTHER DEALINGS IN THE MDL MATERIALS";
+export const string ALLEGORITHMIC_AUTHOR = "Allegorithmic";
+
+
+export material material_root(
+
+	material materialRoot = material(surface: material_surface(scattering: df::diffuse_reflection_bsdf(tint: color(0.214041))))
+
+) [[
+	anno::display_name("Material"),
+	anno::description(""),
+	anno::author(ALLEGORITHMIC_AUTHOR),
+	anno::copyright_notice(ALLEGORITHMIC_COPYRIGHT),
+	anno::version(6,0,1,""),
+	anno::hidden()
+]] = material(
+	thin_walled: materialRoot.thin_walled,
+	surface: materialRoot.surface,
+	backface: materialRoot.backface,
+	ior: materialRoot.ior,
+	volume: materialRoot.volume,
+	geometry: materialRoot.geometry
+);
+
+export color volume_absorption(
+
+	uniform float absorption = float(0) [[
+		anno::display_name("Volume Absorption"),
+		anno::description("Controls how much light is absorbed through the surface"),
+		anno::hard_range(0.0,1000.0),
+		anno::soft_range(0.0,1.0)
+	]],
+
+	uniform color absorptionColor = color(1) [[
+		anno::display_name("Absorption Color"),
+		anno::description("Simulates shifts in color when light passes through the surface")
+	]]
+
+) [[
+	anno::display_name("Absorption"),
+	anno::description("Provides an absorption coefficient for the volume"),
+	anno::author(ALLEGORITHMIC_AUTHOR),
+	anno::copyright_notice(ALLEGORITHMIC_COPYRIGHT),
+	anno::version(6,0,1,"")
+]] {
+	return (absorption>0)? -math::log(math::clamp(absorptionColor, color(0.01), color(0.99)))*absorption*100.0 : color(0);
+}
+
+export color volume_scattering(
+
+	uniform float scattering = float(0) [[
+		anno::display_name("Volume Scattering"),
+		anno::description("Controls how much light is scattered through the surface"),
+		anno::hard_range(0.0,1000.0),
+		anno::soft_range(0.0,1.0)
+
+	]]
+
+) [[
+	anno::display_name("Scattering"),
+	anno::description("Provides a scattering coefficient for the volume"),
+	anno::author(ALLEGORITHMIC_AUTHOR),
+	anno::copyright_notice(ALLEGORITHMIC_COPYRIGHT),
+	anno::version(6,0,1,"")
+]] {
+	return (scattering>0)? -math::log(color(0.5))*scattering*100.0 : color(0);
+}
+
+export float3 scattering_coeffs_from_rayleigh_redshift(
+	uniform float rayleigh = float(0),
+	uniform float red_shift = float(0)
+) [[
+	anno::description("Provides a scattering coefficient from rayleigh / red-shift coefficients")
+]] {
+	float3 coeffs = float3(1.0);
+	coeffs.x /= 1.0 + math::clamp(rayleigh,-1.0,2.0) * -0.493178;
+	coeffs.z /= 1.0 + math::clamp(rayleigh,-1.0,2.0) * 0.899;
+	if (red_shift!=0.0) {
+		coeffs.x *= math::pow(4.0,red_shift);
+	}
+	return coeffs;
+}
+
+export float3 displacement(
+	varying float height = float(0.5) [[
+		anno::display_name("Height")
+		, anno::in_group("Height")
+		, anno::usage("height")
+		, anno::description("Height channel")
+	]],
+
+	uniform float heightScale = float(0) [[
+		anno::display_name("Scale")
+		, anno::in_group("Height")
+		, anno::usage("heightscale")
+		, anno::description("scales the range of displacement")
+	]],
+
+	uniform float scalarZeroValue = float(0.5) [[
+		anno::display_name("Scalar Zero Value")
+		, anno::in_group("Height")
+		, anno::usage("heightScalarZeroValue")
+		, anno::soft_range(0.0, 1.0)
+		, anno::description("Determine the neutral height value")
+	]],
+
+	uniform float tiling = float(1.0) [[
+		anno::display_name("Tiling")
+		, anno::in_group("Height")
+		, anno::usage("materialTiling")
+		, anno::soft_range(0.0, 10.0)
+		, anno::description("Tiling value to keep displacement tiling independent")
+	]]
+) [[
+	anno::display_name("Displacement")
+	, anno::description("Provides significant physical detail to the surface by manipulating the vertices of the mesh")
+	, anno::version(2020, 8, 21)
+	, anno::modified(2020, 8, 21, "Added scalarZeroValue to be able to interpret different height texture correctly")
+	, anno::modified(2020, 8, 21, "Added tiling to be able to express displacement in a tiling independent manner")
+	, anno::author(ALLEGORITHMIC_AUTHOR)
+	, anno::copyright_notice(ALLEGORITHMIC_COPYRIGHT)
+]] {
+	return state::normal() * (height - scalarZeroValue) * heightScale / tiling;
+}
+
+export enum tangent_space_plugin_mode
+[[
+	anno::hidden()
+	, anno::display_name("Tangent Space Plugin Mode")
+	, anno::description("Describes Tangent Space Plugin behavior to adopt when computing")
+]]
+{
+	None   [[ anno::display_name( "None"   ) ]],
+	Mikk   [[ anno::display_name( "Mikk"   ) ]],
+	Unreal [[ anno::display_name( "Unreal" ) ]],
+	Unity  [[ anno::display_name( "Unity"  ) ]]
+};
+
+float3 fixBinormal(float3 n, float3 t, float3 b) [[
+	anno::description("Substance Designer way to interpret per fragment bitangent")
+]]
+{
+	float3 nt = math::cross(n,t);
+	return math::sign(math::dot(nt,b))*nt;
+}
+
+export float3 tangent_space_plugin_normal_texture(
+	uniform texture_2d texture
+		[[ anno::description("The input texture") ]],
+	uniform float factor = 1.0f
+		[[ anno::description("Determines the degree of bumpiness") ]],
+	uniform bool flip_tangent_u = false
+		[[ anno::description("Can be used to fix mismatches between the object's tangent space and the normal map's tangent space") ]],
+	uniform bool flip_tangent_v = true
+		[[
+			anno::description("Can be used to fix mismatches between the object's tangent space and the normal map's tangent space")
+			, anno::enable_if("mode==None")
+		]],
+	varying base::texture_coordinate_info uvw = base::texture_coordinate_info()
+		[[ anno::description("Parameterization to be used for texture mapping. defaults to texture channel 0.") ]],
+	uniform float2 crop_u = float2( 0.0, 1.0)
+		[[ anno::description("Restricts the texture access to sub-domain of the texture in the u direction") ]],
+	uniform float2 crop_v = float2( 0.0, 1.0)
+		[[ anno::description("Restricts the texture access to sub-domain of the texture in the v direction") ]],
+	uniform tex::wrap_mode wrap_u = tex::wrap_repeat
+		[[ anno::description("Wrapping mode in the u direction") ]],
+	uniform tex::wrap_mode wrap_v = tex::wrap_repeat
+		[[ anno::description("Wrapping mode in the v direction") ]],
+	uniform float scale = 1.0f
+		[[ anno::description("Scales the value red from the texture file. can be used to adapt to different normal map formats") ]],
+	uniform float offset = 0.0f
+		[[ anno::description("Offset applied to the value red from the texture file. can be used to adapt to different normal map formats") ]],
+	uniform tangent_space_plugin_mode mode = None
+		[[ anno::description("Tangent Space computation behavior") ]],
+	uniform bool force_compute_tangent_space = false
+		[[
+			anno::description("Force re-computation of tangent space based on normal & tangent")
+			, anno::enable_if("mode!=None")
+		]]
+)
+[[
+	  anno::display_name("Tangent Space Plugin Normal Texture")
+	, anno::description("Reinterpretation of tangent_space_normal_texture to interpret correctly tangent/bitangent computed by popular tangent space computation plugin")
+	, anno::author(ALLEGORITHMIC_AUTHOR)
+	, anno::contributor("Jan Jordan")
+	, anno::created(2019,01,24,"Implementation based on Jan. code sample")
+	, anno::modified(2019,02,05, "Refined after testing mesh with tangent space are computed for each plugin")
+	, anno::modified(2019,06,17, "Added a flag to force computation of tangent space")
+	, anno::copyright_notice(ALLEGORITHMIC_COPYRIGHT)
+	, anno::version(1,0,1)
+	, anno::key_words(string[]("tangentspace","normal","bump","Mikk"))
+]]
+{
+	// texture coordinate goes into UV Set 0
+	// normals            goes into UV Set 1
+	// tangent            goes into UV Set 2
+	// bitangent          goes into UV Set 3
+
+	if( mode == None )
+	{
+		return base::tangent_space_normal_texture(
+			texture: texture,
+			factor: factor,
+			flip_tangent_u: flip_tangent_u,
+			flip_tangent_v: flip_tangent_v,
+			uvw: uvw,
+			crop_u: crop_u,
+			crop_v: crop_v,
+			wrap_u: wrap_u,
+			wrap_v: wrap_v,
+			scale: scale,
+			offset: offset
+		);
+	}
+	else
+	{
+		float3 normal = state::transform_normal(
+			state::coordinate_object, state::coordinate_internal,
+			state::texture_coordinate(1)
+		);
+
+		if (math::dot(normal, state::geometry_normal()) < 0.0f)
+			normal = -normal;
+
+		uvw.tangent_u = state::transform_normal(
+			state::coordinate_object, state::coordinate_internal,
+			state::texture_coordinate(2)
+		);
+
+		uvw.tangent_v = state::transform_normal(
+			state::coordinate_object, state::coordinate_internal,
+			state::texture_coordinate(3)
+		);
+
+		if ( (mode == Unreal) || force_compute_tangent_space )
+		{
+			uvw.tangent_v = fixBinormal(normal, uvw.tangent_u, uvw.tangent_v);
+		}
+
+		if (flip_tangent_u)
+			uvw.tangent_u *= -1.0;
+		if (flip_tangent_v)
+			uvw.tangent_v *= -1.0;
+
+		float3 tangent_space_normal = tex::lookup_float3(
+			texture,
+			float2(uvw.position.x,uvw.position.y),
+			wrap_u, wrap_v,
+			crop_u, crop_v
+		);
+		tangent_space_normal.x = ( tangent_space_normal.x * scale ) + offset;
+		tangent_space_normal = (tangent_space_normal - float3(0.5)) * (2.0 * factor);
+
+		return math::normalize(
+			uvw.tangent_u * tangent_space_normal.x +
+			uvw.tangent_v * tangent_space_normal.y +
+			normal        * (tangent_space_normal.z + (1.0 - factor))
+		);
+	}
+}
+
+export enum displacement_source_channel [[
+	anno::display_name("Displacement Source Channel")
+	, anno::description("Choose which channel will drives displacement")
+]]
+{
+	displacement_source_channel_height = 0 [[
+		anno::display_name("Height")
+	]]
+	, displacement_source_channel_displacement = 1 [[
+		anno::display_name("Displacement")
+	]]
+};
+
+export enum subsurface_scattering_type [[
+	anno::display_name("Subsurface Scattering Type")
+	, anno::description("Skin, Translucent/Generic or Red Shift & Rayleigh controls. It needs to be activated in the Display Settings and a Scattering channel needs to be present for these parameters to have an effect.")
+]]
+{
+	subsurface_scattering_type_translucent = 0 [[
+		anno::display_name("Translucent")
+	]]
+	, subsurface_scattering_type_skin = 1 [[
+		anno::display_name("Skin")
+	]]
+	, subsurface_scattering_type_rayleigh = 2 [[
+		anno::display_name("Red Shift - Rayleigh")
+	]]
+};
+
+export struct volume_return
+[[ anno::hidden() ]]
+{
+    color absorption_coefficient = color();
+    color scattering_coefficient = color();
+};
+
+export volume_return volume_conversion(
+	uniform float absorption = 0.f,
+	uniform color absorptionColor = color(1.f),
+	uniform float scattering = 0.f,
+	uniform bool sssEnabled = false,
+	uniform subsurface_scattering_type sssType = subsurface_scattering_type_skin,
+	uniform color sssColor = color(1.f),
+	uniform float sssScale = 0.f,
+	uniform float sssRedShift = 0.f,
+	uniform float sssRayleigh = 0.f
+)
+[[
+	anno::description("Calculate volume properties from parameters"),
+	anno::hidden()
+]]
+{
+    //- denominator always != 0.0
+    float sss_scale_factor = 0.333f;
+    float sss_scale_matching_opengl = math::max( sssScale * sss_scale_factor, 0.001 );
+
+    float sss_color_saturation = 0.85;
+    color sss_color = sssType == subsurface_scattering_type_rayleigh ?
+        color(scattering_coeffs_from_rayleigh_redshift(
+           rayleigh:  sssRayleigh,
+           red_shift: sssRedShift)) :
+        sssColor;
+    color adjusted_sss_color = ( sss_color - color( 0.5 ) ) * sss_color_saturation + color( 0.5 );
+
+    color skin_absorption_coef = math::log( adjusted_sss_color ) / -(sss_scale_matching_opengl*100.0);
+    color skin_scattering_coef = math::log( adjusted_sss_color ) / -(sss_scale_matching_opengl);
+
+	color trans_absorption_coef = volume_absorption( absorption: absorption, absorptionColor: absorptionColor );
+    color trans_scattering_coef = volume_scattering( scattering: scattering );
+
+	return volume_return(
+		absorption_coefficient: sssEnabled ? skin_absorption_coef : trans_absorption_coef,
+		scattering_coefficient: sssEnabled ? skin_scattering_coef : trans_scattering_coef
+	);
+}
+
+export enum coat_behavior [[
+	anno::display_name("Coating Behavior")
+]]
+{
+	coat_behavior_smooth_surface = 0 [[
+		anno::display_name("Smooth surface")
+	]]
+	, coat_behavior_keep_details = 1 [[
+		anno::display_name("Keep details")
+	]]
+};
+
+export enum subsurface_scattering_source_channel [[
+	anno::display_name("Subsurface Scattering Source Channel")
+	, anno::description("Select which channel is used to define scattering color. It needs to be activated in the Display Settings and a Scattering channel needs to be present for these parameters to have an effect.")
+]]
+{
+	subsurface_scattering_source_channel_albedo = 0 [[
+		anno::display_name("Default Albedo")
+	]]
+	, subsurface_scattering_source_channel_scatteringcolor = 1 [[
+		anno::display_name("ScatteringColor channel")
+	]]
+};
+
+export color default_emission_intensity(
+    uniform float emission = 0.f,
+    varying color emission_color = color(1.f)
+)
+[[
+	anno::description("Compute Emission Intensity consistenly across Substance applications"),
+	anno::hidden()
+]]
+{
+    const float kEmissionMatchingFactor = math::PI;
+    return emission * emission_color * kEmissionMatchingFactor;
+}

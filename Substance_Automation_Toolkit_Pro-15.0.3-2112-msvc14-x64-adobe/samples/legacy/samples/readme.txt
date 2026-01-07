@@ -1,0 +1,1 @@
+Be sure to copy all samples in a writable directory before executing example script.

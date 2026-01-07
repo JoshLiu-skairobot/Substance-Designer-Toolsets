@@ -1,0 +1,10 @@
+.claude/
+.openspec/
+Substance_Automation_Toolkit_Pro-*/
+__pycache__/
+*.pyc
+.venv/
+env/
+.vscode/
+.idea/
+*.log
