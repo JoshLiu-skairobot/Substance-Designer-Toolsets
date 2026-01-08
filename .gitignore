@@ -1,10 +1,32 @@
 .claude/
 .openspec/
-Substance_Automation_Toolkit_Pro-*/
+# IDEs
+.vscode/
+.idea/
+.cursor/
+
+# Logs and databases
+*.log
+sat_tools/logs/
+assets.db
+sat_tools/assets.db
+
+# Node modules
+node_modules/
+sat_tools/frontend/node_modules/
+
+# Python
 __pycache__/
 *.pyc
 .venv/
 env/
-.vscode/
-.idea/
-*.log
+
+# Large assets and archives
+*.zip
+*.sbsar
+*.sbs
+sat_tools/storage/
+sat_tools/thumbnails/
+
+# Substance specific
+Substance_Automation_Toolkit_Pro-*/
