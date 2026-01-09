@@ -231,8 +231,9 @@ def _auto_process_asset(asset, db, storage):
         renderer = ThumbnailRenderer()
         render_result = renderer.render(
             filepath=asset.storage_path,
-            resolution=256,
-            output_format='png'
+            resolution=512,
+            output_format='png',
+            use_material_ball=True
         )
         
         if render_result.success:
@@ -450,7 +451,8 @@ def generate_asset_thumbnail(asset_id):
         return jsonify({'error': f'Source file not found: {asset.storage_path}'}), 404
     
     data = request.get_json() or {}
-    resolution = data.get('resolution', 256)
+    resolution = data.get('resolution', 512)
+    use_material_ball = data.get('useMaterialBall', True)
     
     try:
         # Import from the correct path
@@ -462,7 +464,8 @@ def generate_asset_thumbnail(asset_id):
         result = renderer.render(
             filepath=asset.storage_path,
             resolution=resolution,
-            output_format='png'
+            output_format='png',
+            use_material_ball=use_material_ball
         )
         
         if not result.success:

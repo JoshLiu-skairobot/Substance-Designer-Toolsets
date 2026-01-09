@@ -86,8 +86,9 @@ class BatchProcessor:
         self,
         filepath: str,
         output_dir: str,
-        resolution: int = 256,
+        resolution: int = 512,
         output_format: str = 'png',
+        use_material_ball: bool = True,
         tags: Optional[List[str]] = None,
         embed_metadata: bool = True
     ) -> Dict[str, Any]:
@@ -99,6 +100,7 @@ class BatchProcessor:
             output_dir: Output directory for thumbnails.
             resolution: Output resolution.
             output_format: Output format.
+            use_material_ball: Whether to render on a material ball.
             tags: Tags to embed in metadata.
             embed_metadata: Whether to embed metadata.
             
@@ -113,7 +115,8 @@ class BatchProcessor:
             filepath=str(filepath),
             output_path=str(output_path),
             resolution=resolution,
-            output_format=output_format
+            output_format=output_format,
+            use_material_ball=use_material_ball
         )
         
         if not result.success:
@@ -153,8 +156,9 @@ class BatchProcessor:
         self,
         directory: str,
         output_dir: str,
-        resolution: int = 256,
+        resolution: int = 512,
         output_format: str = 'png',
+        use_material_ball: bool = True,
         recursive: bool = False,
         tags: Optional[List[str]] = None,
         embed_metadata: bool = True,
@@ -168,6 +172,7 @@ class BatchProcessor:
             output_dir: Output directory for thumbnails.
             resolution: Output resolution.
             output_format: Output format.
+            use_material_ball: Whether to render on a material ball.
             recursive: Whether to search recursively.
             tags: Tags to embed in metadata.
             embed_metadata: Whether to embed metadata.
@@ -202,6 +207,7 @@ class BatchProcessor:
                 output_dir=output_dir,
                 resolution=resolution,
                 output_format=output_format,
+                use_material_ball=use_material_ball,
                 tags=tags,
                 embed_metadata=embed_metadata
             )
@@ -228,8 +234,9 @@ class BatchProcessor:
         self,
         files: List[str],
         output_dir: str,
-        resolution: int = 256,
+        resolution: int = 512,
         output_format: str = 'png',
+        use_material_ball: bool = True,
         tags: Optional[List[str]] = None,
         embed_metadata: bool = True
     ) -> BatchResult:
@@ -241,6 +248,7 @@ class BatchProcessor:
             output_dir: Output directory.
             resolution: Output resolution.
             output_format: Output format.
+            use_material_ball: Whether to render on a material ball.
             tags: Tags to embed.
             embed_metadata: Whether to embed metadata.
             
@@ -260,6 +268,7 @@ class BatchProcessor:
                     output_dir=output_dir,
                     resolution=resolution,
                     output_format=output_format,
+                    use_material_ball=use_material_ball,
                     tags=tags,
                     embed_metadata=embed_metadata
                 ): f for f in files

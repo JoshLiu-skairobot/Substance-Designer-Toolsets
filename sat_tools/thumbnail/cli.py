@@ -34,7 +34,8 @@ def cmd_generate(args):
             filepath=filepath,
             output_path=output,
             resolution=resolution,
-            output_format='png'
+            output_format='png',
+            use_material_ball=not args.flat
         )
         
         if result.success:
@@ -86,6 +87,7 @@ def cmd_batch(args):
             output_dir=output_dir,
             resolution=resolution,
             recursive=recursive,
+            use_material_ball=not args.flat,
             embed_metadata=not args.no_metadata,
             tags=args.tags.split(',') if args.tags else None,
             progress_callback=progress
@@ -145,8 +147,10 @@ def main():
     gen_parser = subparsers.add_parser('generate', help='Generate thumbnail for a file')
     gen_parser.add_argument('file', help='Path to SBS/SBSAR file')
     gen_parser.add_argument('-o', '--output', help='Output path')
-    gen_parser.add_argument('-r', '--resolution', type=int, default=256,
-                           help='Output resolution (default: 256)')
+    gen_parser.add_argument('-r', '--resolution', type=int, default=512,
+                           help='Output resolution (default: 512)')
+    gen_parser.add_argument('--flat', action='store_true',
+                           help='Use flat rendering instead of material ball')
     gen_parser.add_argument('--no-metadata', action='store_true',
                            help='Do not embed metadata')
     gen_parser.add_argument('--tags', help='Comma-separated tags')
@@ -155,8 +159,10 @@ def main():
     batch_parser = subparsers.add_parser('batch', help='Batch generate thumbnails')
     batch_parser.add_argument('directory', help='Directory with SBS/SBSAR files')
     batch_parser.add_argument('-o', '--output', help='Output directory')
-    batch_parser.add_argument('-r', '--resolution', type=int, default=256,
-                             help='Output resolution')
+    batch_parser.add_argument('-r', '--resolution', type=int, default=512,
+                             help='Output resolution (default: 512)')
+    batch_parser.add_argument('--flat', action='store_true',
+                             help='Use flat rendering instead of material ball')
     batch_parser.add_argument('--recursive', action='store_true',
                              help='Search recursively')
     batch_parser.add_argument('--no-metadata', action='store_true',

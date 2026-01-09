@@ -44,8 +44,9 @@ def generate_thumbnail():
     """Generate a thumbnail from an SBS/SBSAR file."""
     data = request.get_json()
     filepath = data.get('filepath')
-    resolution = data.get('resolution', 256)
+    resolution = data.get('resolution', 512)
     output_format = data.get('format', 'png')
+    use_material_ball = data.get('useMaterialBall', True)
     
     if not filepath:
         return jsonify({'error': 'No filepath provided'}), 400
@@ -60,7 +61,8 @@ def generate_thumbnail():
         result = renderer.render(
             filepath=filepath,
             resolution=resolution,
-            output_format=output_format
+            output_format=output_format,
+            use_material_ball=use_material_ball
         )
         
         if not result.success:
@@ -104,8 +106,9 @@ def batch_generate():
     """Batch generate thumbnails."""
     data = request.get_json()
     directory = data.get('directory')
-    resolution = data.get('resolution', 256)
+    resolution = data.get('resolution', 512)
     output_format = data.get('format', 'png')
+    use_material_ball = data.get('useMaterialBall', True)
     
     if not directory:
         return jsonify({'error': 'No directory provided'}), 400
@@ -126,7 +129,8 @@ def batch_generate():
             directory=directory,
             output_dir=output_dir,
             resolution=resolution,
-            output_format=output_format
+            output_format=output_format,
+            use_material_ball=use_material_ball
         )
         
         # Store thumbnails

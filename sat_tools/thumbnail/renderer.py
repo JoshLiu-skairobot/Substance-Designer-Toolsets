@@ -9,6 +9,8 @@ import os
 import subprocess
 import tempfile
 import logging
+import math
+import shutil
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass, field
@@ -62,6 +64,16 @@ class ThumbnailRenderer:
         self.sat_path = sat_install_path or self._detect_sat_path()
         self.sbsrender_path = self._find_tool('sbsrender')
         self.sbscooker_path = self._find_tool('sbscooker')
+        
+        # Path to internal material ball renderer
+        self.material_ball_sbsar = None
+        if self.sat_path:
+            mb_path = os.path.join(self.sat_path, 'resources', 'internal', 'material_thumbnail_render.sbsar')
+            if os.path.exists(mb_path):
+                self.material_ball_sbsar = mb_path
+                logger.info(f"Found material ball renderer: {self.material_ball_sbsar}")
+            else:
+                logger.warning(f"Material ball renderer not found at: {mb_path}")
         
     def _detect_sat_path(self) -> Optional[str]:
         """Detect SAT installation path."""
@@ -138,12 +150,6 @@ class ThumbnailRenderer:
     def _parse_graph_info(self, info_output: str) -> List[GraphInfo]:
         """
         Parse the output of sbsrender info.
-        
-        Example output:
-        GRAPH-URL pkg://ABB_product_test_mod
-          INPUT $time FLOAT1
-          OUTPUT basecolor baseColor
-          OUTPUT normal normal
         """
         graphs: List[GraphInfo] = []
         current_graph: Optional[GraphInfo] = None
@@ -188,14 +194,6 @@ class ThumbnailRenderer:
     def find_best_graph(self, graphs: List[GraphInfo]) -> Tuple[Optional[str], Optional[str]]:
         """
         Find the best graph to render for a thumbnail.
-        
-        Looks for a graph that has a basecolor/diffuse/albedo output.
-        
-        Args:
-            graphs: List of GraphInfo objects.
-            
-        Returns:
-            Tuple of (graph_name, output_name) or (None, None) if not found.
         """
         # Priority list of output names/usages for thumbnail
         priority_outputs = [
@@ -231,13 +229,6 @@ class ThumbnailRenderer:
     ) -> tuple:
         """
         Cook/compile an SBS file to SBSAR.
-        
-        Args:
-            sbs_path: Path to the SBS file.
-            output_path: Optional output path. If None, uses temp directory.
-            
-        Returns:
-            Tuple of (success, sbsar_path, error_message)
         """
         if self.sbscooker_path is None:
             return False, '', "sbscooker not found. Check SAT installation path."
@@ -269,11 +260,10 @@ class ThumbnailRenderer:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minute timeout for cooking
+                timeout=300
             )
             
             if result.returncode == 0:
-                # Check if output file exists
                 if Path(sbsar_path).exists():
                     logger.info(f"Successfully cooked to: {sbsar_path}")
                     return True, sbsar_path, None
@@ -283,33 +273,153 @@ class ThumbnailRenderer:
                 logger.error(f"sbscooker failed: {result.stderr}")
                 return False, '', f"sbscooker failed: {result.stderr}"
                 
-        except subprocess.TimeoutExpired:
-            return False, '', "Cooking timed out after 300 seconds"
         except Exception as e:
             return False, '', f"Cooking failed: {str(e)}"
-    
+
+    def _render_material_ball(
+        self,
+        sbsar_path: str,
+        output_path: Optional[str] = None,
+        resolution: int = 512,
+        output_format: str = 'png',
+        graph_name: Optional[str] = None
+    ) -> RenderResult:
+        """
+        Renders a material ball using the internal material_thumbnail_render.sbsar.
+        """
+        if not self.material_ball_sbsar:
+            return RenderResult(
+                success=False, 
+                output_path='', 
+                graph_name='', 
+                resolution=(resolution, resolution), 
+                error="Material ball renderer not found"
+            )
+
+        temp_dir = tempfile.mkdtemp(prefix='sat_mb_maps_')
+        try:
+            # 1. Get graph info to find available outputs
+            graphs = self.get_graph_info(sbsar_path)
+            if not graphs:
+                return RenderResult(
+                    success=False, 
+                    output_path='', 
+                    graph_name='', 
+                    resolution=(resolution, resolution), 
+                    error="Could not get graph info"
+                )
+            
+            target_graph = None
+            if graph_name:
+                for g in graphs:
+                    if g.name == graph_name:
+                        target_graph = g
+                        break
+            
+            if not target_graph:
+                target_graph = graphs[0]
+                graph_name = target_graph.name
+
+            # 2. Render necessary maps
+            maps_to_render = {
+                'basecolor': ['basecolor', 'baseColor', 'diffuse', 'albedo'],
+                'normal': ['normal', 'Normal'],
+                'roughness': ['roughness', 'Roughness'],
+                'metallic': ['metallic', 'Metallic', 'metalness'],
+                'height': ['height', 'Height', 'displacement'],
+                'emissive': ['emissive', 'Emissive']
+            }
+
+            rendered_maps = {}
+            # Clamp resolution for maps and final render
+            resolution = max(256, min(2048, resolution))
+            map_res_log2 = int(math.log2(resolution))
+            
+            available_outputs = {out.name.lower(): out.name for out in target_graph.outputs}
+            available_usages = {out.usage.lower(): out.name for out in target_graph.outputs}
+
+            for map_type, possible_names in maps_to_render.items():
+                target_output = None
+                for name in possible_names:
+                    if name.lower() in available_outputs:
+                        target_output = available_outputs[name.lower()]
+                        break
+                    if name.lower() in available_usages:
+                        target_output = available_usages[name.lower()]
+                        break
+                
+                if target_output:
+                    map_file_name = f"{map_type}.png"
+                    cmd = [
+                        self.sbsrender_path, 'render',
+                        '--input', sbsar_path,
+                        '--input-graph', graph_name,
+                        '--input-graph-output', target_output,
+                        '--output-path', temp_dir,
+                        '--output-name', map_type,
+                        '--output-format', 'png',
+                        '--set-value', f'$outputsize@{map_res_log2},{map_res_log2}'
+                    ]
+                    subprocess.run(cmd, capture_output=True, check=False)
+                    map_file_path = os.path.join(temp_dir, map_file_name)
+                    if os.path.exists(map_file_path):
+                        rendered_maps[map_type] = map_file_path
+
+            # 3. Use material_thumbnail_render.sbsar to render final image
+            if output_path is None:
+                final_output_dir = tempfile.mkdtemp(prefix='sat_mb_final_')
+                output_path = os.path.join(final_output_dir, f"thumbnail.{output_format}")
+            else:
+                Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+            cmd = [
+                self.sbsrender_path, 'render',
+                '--input', self.material_ball_sbsar,
+                '--output-path', str(Path(output_path).parent),
+                '--output-name', Path(output_path).stem,
+                '--output-format', output_format,
+                '--set-value', f'$outputsize@{map_res_log2},{map_res_log2}'
+            ]
+
+            for map_type, map_file in rendered_maps.items():
+                cmd.extend(['--set-entry', f'{map_type}@{map_file}'])
+
+            logger.info(f"Rendering material ball: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                actual_output = Path(output_path).parent / f"{Path(output_path).stem}.{output_format}"
+                if actual_output.exists():
+                    return RenderResult(
+                        success=True,
+                        output_path=str(actual_output),
+                        graph_name=graph_name,
+                        resolution=(resolution, resolution)
+                    )
+            
+            return RenderResult(
+                success=False,
+                output_path='',
+                graph_name=graph_name,
+                resolution=(resolution, resolution),
+                error=f"Material ball render failed: {result.stderr}"
+            )
+
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
     def render(
         self,
         filepath: str,
         output_path: Optional[str] = None,
-        resolution: int = 256,
+        resolution: int = 512,
         output_format: str = 'png',
         graph_name: Optional[str] = None,
-        output_name: str = 'basecolor'
+        output_name: str = 'basecolor',
+        use_material_ball: bool = True
     ) -> RenderResult:
         """
         Render a thumbnail from an SBS/SBSAR file.
-        
-        Args:
-            filepath: Path to the SBS/SBSAR file.
-            output_path: Output path for the thumbnail. If None, uses temp directory.
-            resolution: Output resolution (e.g., 256 for 256x256).
-            output_format: Output format ('png' or 'jpg').
-            graph_name: Name of the graph to render. If None, auto-detects best graph.
-            output_name: Name of the output to render (e.g., 'basecolor').
-            
-        Returns:
-            RenderResult with the operation result.
         """
         if self.sbsrender_path is None:
             return RenderResult(
@@ -317,7 +427,7 @@ class ThumbnailRenderer:
                 output_path='',
                 graph_name=graph_name or '',
                 resolution=(resolution, resolution),
-                error="sbsrender not found. Check SAT installation path."
+                error="sbsrender not found."
             )
         
         filepath = Path(filepath)
@@ -330,13 +440,11 @@ class ThumbnailRenderer:
                 error=f"File not found: {filepath}"
             )
         
-        # If it's an SBS file, cook it first
         render_file = str(filepath)
         temp_sbsar = None
         temp_sbsar_dir = None
         
         if filepath.suffix.lower() == '.sbs':
-            logger.info(f"Cooking SBS file: {filepath}")
             success, sbsar_path, error = self.cook_sbs(str(filepath))
             if not success:
                 return RenderResult(
@@ -344,165 +452,82 @@ class ThumbnailRenderer:
                     output_path='',
                     graph_name=graph_name or '',
                     resolution=(resolution, resolution),
-                    error=f"Failed to cook SBS file: {error}"
+                    error=f"Failed to cook SBS: {error}"
                 )
             render_file = sbsar_path
             temp_sbsar = sbsar_path
             temp_sbsar_dir = str(Path(sbsar_path).parent)
         
-        # Auto-detect graph and output if not specified
-        if graph_name is None:
-            logger.info("No graph specified, auto-detecting best graph...")
-            graphs = self.get_graph_info(render_file)
-            if graphs:
-                detected_graph, detected_output = self.find_best_graph(graphs)
-                if detected_graph:
-                    graph_name = detected_graph
-                    output_name = detected_output or output_name
-                    logger.info(f"Auto-selected graph: {graph_name}, output: {output_name}")
-                else:
-                    logger.warning("No suitable graph found, using default behavior")
-            else:
-                logger.warning("Could not get graph info, using default behavior")
-        
-        # Determine output path
-        if output_path is None:
-            output_dir = tempfile.mkdtemp(prefix='sat_thumbnail_')
-            output_path = os.path.join(
-                output_dir, 
-                f"{filepath.stem}_preview.{output_format}"
-            )
-        
-        # Ensure output directory exists
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        
-        # Convert pixel resolution to log2 value for Substance
-        # 256 -> 8, 512 -> 9, 1024 -> 10, 2048 -> 11, 4096 -> 12
-        import math
-        log2_res = int(math.log2(resolution)) if resolution > 0 else 8
-        # Clamp to valid range (5 = 32px to 13 = 8192px)
-        log2_res = max(5, min(13, log2_res))
-        
-        # Build sbsrender command
-        cmd = [
-            self.sbsrender_path,
-            'render',
-            '--input', render_file,
-            '--output-path', str(Path(output_path).parent),
-            '--output-name', f"{filepath.stem}_preview",
-            '--output-format', output_format,
-            '--set-value', f'$outputsize@{log2_res},{log2_res}',
-        ]
-        
-        if graph_name:
-            cmd.extend(['--input-graph', graph_name])
-            
-        # Add output selection
-        cmd.extend(['--input-graph-output', output_name])
-        
-        logger.info(f"Rendering: {' '.join(cmd)}")
-        
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120  # 2 minute timeout
-            )
+            if use_material_ball and self.material_ball_sbsar:
+                return self._render_material_ball(
+                    render_file, 
+                    output_path, 
+                    resolution, 
+                    output_format, 
+                    graph_name
+                )
             
+            # Flat rendering fallback
+            if graph_name is None:
+                graphs = self.get_graph_info(render_file)
+                if graphs:
+                    detected_graph, detected_output = self.find_best_graph(graphs)
+                    if detected_graph:
+                        graph_name = detected_graph
+                        output_name = detected_output or output_name
+            
+            if output_path is None:
+                output_dir = tempfile.mkdtemp(prefix='sat_thumb_')
+                output_path = os.path.join(output_dir, f"{filepath.stem}_preview.{output_format}")
+            
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            log2_res = max(5, min(13, int(math.log2(resolution))))
+            
+            cmd = [
+                self.sbsrender_path, 'render',
+                '--input', render_file,
+                '--output-path', str(Path(output_path).parent),
+                '--output-name', Path(output_path).stem,
+                '--output-format', output_format,
+                '--set-value', f'$outputsize@{log2_res},{log2_res}',
+            ]
+            if graph_name:
+                cmd.extend(['--input-graph', graph_name])
+            cmd.extend(['--input-graph-output', output_name])
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode == 0:
-                # Find the actual output file
-                output_dir = Path(output_path).parent
-                expected_name = f"{filepath.stem}_preview.{output_format}"
-                actual_output = output_dir / expected_name
-                
+                actual_output = Path(output_path).parent / f"{Path(output_path).stem}.{output_format}"
                 if actual_output.exists():
-                    logger.info(f"Thumbnail rendered successfully: {actual_output}")
                     return RenderResult(
                         success=True,
                         output_path=str(actual_output),
                         graph_name=graph_name or 'default',
                         resolution=(resolution, resolution)
                     )
-                else:
-                    # Try to find any output file
-                    for f in output_dir.glob(f"*.{output_format}"):
-                        logger.info(f"Found output file: {f}")
-                        return RenderResult(
-                            success=True,
-                            output_path=str(f),
-                            graph_name=graph_name or 'default',
-                            resolution=(resolution, resolution)
-                        )
-                    
-                    return RenderResult(
-                        success=False,
-                        output_path='',
-                        graph_name=graph_name or '',
-                        resolution=(resolution, resolution),
-                        error=f"Output file not created. stdout: {result.stdout}"
-                    )
-            else:
-                logger.error(f"sbsrender failed: {result.stderr}")
-                return RenderResult(
-                    success=False,
-                    output_path='',
-                    graph_name=graph_name or '',
-                    resolution=(resolution, resolution),
-                    error=f"sbsrender failed: {result.stderr}"
-                )
-                
-        except subprocess.TimeoutExpired:
+            
             return RenderResult(
-                success=False,
-                output_path='',
-                graph_name=graph_name or '',
-                resolution=(resolution, resolution),
-                error="Render timed out after 120 seconds"
-            )
-        except Exception as e:
-            logger.exception(f"Render failed: {e}")
-            return RenderResult(
-                success=False,
-                output_path='',
-                graph_name=graph_name or '',
-                resolution=(resolution, resolution),
-                error=f"Render failed: {str(e)}"
+                success=False, output_path='', graph_name=graph_name or '', resolution=(resolution, resolution),
+                error=f"Flat render failed: {result.stderr}"
             )
         finally:
-            # Clean up temporary SBSAR file and directory
             if temp_sbsar and Path(temp_sbsar).exists():
-                try:
-                    Path(temp_sbsar).unlink()
-                except:
-                    pass
+                try: Path(temp_sbsar).unlink()
+                except: pass
             if temp_sbsar_dir and Path(temp_sbsar_dir).exists():
-                try:
-                    import shutil
-                    shutil.rmtree(temp_sbsar_dir, ignore_errors=True)
-                except:
-                    pass
-    
+                shutil.rmtree(temp_sbsar_dir, ignore_errors=True)
+
     def render_all_outputs(
         self,
         filepath: str,
         output_dir: str,
-        resolution: int = 256,
+        resolution: int = 512,
         output_format: str = 'png'
     ) -> List[RenderResult]:
         """
         Render all outputs from an SBS/SBSAR file.
-        
-        Args:
-            filepath: Path to the SBS/SBSAR file.
-            output_dir: Directory for output files.
-            resolution: Output resolution.
-            output_format: Output format.
-            
-        Returns:
-            List of RenderResult for each output.
         """
-        # Common output names to try
         output_names = [
             'basecolor', 'diffuse', 'albedo',
             'normal', 'height', 'roughness', 
@@ -513,64 +538,48 @@ class ThumbnailRenderer:
         for output_name in output_names:
             result = self.render(
                 filepath=filepath,
-                output_path=os.path.join(
-                    output_dir, 
-                    f"{Path(filepath).stem}_{output_name}.{output_format}"
-                ),
+                output_path=os.path.join(output_dir, f"{Path(filepath).stem}_{output_name}.{output_format}"),
                 resolution=resolution,
                 output_format=output_format,
-                output_name=output_name
+                output_name=output_name,
+                use_material_ball=False # When rendering all maps, we don't want the ball
             )
             if result.success:
                 results.append(result)
         
         return results
-    
+
     def get_available_outputs(self, filepath: str) -> List[str]:
         """
         Get list of available outputs from an SBS/SBSAR file.
-        
-        Args:
-            filepath: Path to the file.
-            
-        Returns:
-            List of output names.
         """
         if self.sbsrender_path is None:
             return []
         
-        # If SBS file, cook it first
         render_file = filepath
+        temp_sbsar = None
         if filepath.lower().endswith('.sbs'):
             success, sbsar_path, error = self.cook_sbs(filepath)
             if not success:
                 return []
             render_file = sbsar_path
+            temp_sbsar = sbsar_path
             
-        cmd = [
-            self.sbsrender_path,
-            'info',
-            '--input', render_file,
-        ]
-        
+        cmd = [self.sbsrender_path, 'info', '--input', render_file]
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode == 0:
-                # Parse output to find available outputs
                 outputs = []
                 for line in result.stdout.split('\n'):
                     if 'OUTPUT' in line.upper():
-                        # Extract output name from line
                         parts = line.split()
                         if len(parts) > 1:
                             outputs.append(parts[-1])
                 return outputs
             return []
-        except Exception:
+        except:
             return []
+        finally:
+            if temp_sbsar and Path(temp_sbsar).exists():
+                try: Path(temp_sbsar).unlink()
+                except: pass
